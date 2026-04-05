@@ -74,22 +74,30 @@ public:
         if (m_renderCallback) m_renderCallback(m_renderUserData);
     }
 
-    /* Android: доступ к состоянию из static callbacks */
-    struct AndroidState;
-    std::unique_ptr<AndroidState> m_androidState;
+    /* Android: доступ к состоянию из Game.cpp android_main */
+#if defined(BEVOID_PLATFORM_ANDROID)
+    void* getAndroidActivity() const;
+    void* getAndroidWindow() const;
+    void* getEGLDisplay() const;
+    void* getEGLSurface() const;
+    void* getEGLContext() const;
+    void* getEGLConfig() const;
+    void  setEGLSurface(void* surface);
+    void  onAndroidWindowCreated();
+    void  onAndroidWindowDestroyed();
+#endif
 
 private:
     OsManager m_osManager;
 
 #if !defined(BEVOID_PLATFORM_ANDROID)
     GLFWwindow* m_window = nullptr;
-    /* Пустая структура чтобы unique_ptr имел полный тип */
+    /* Пустая структура чтобы unique_ptr имел полный тип в деструкторе */
     struct AndroidState {};
-    std::unique_ptr<AndroidState> m_androidState;
 #else
     struct AndroidState;
-    std::unique_ptr<AndroidState> m_androidState;
 #endif
+    std::unique_ptr<AndroidState> m_androidState;
 
     void (*m_renderCallback)(void* userData) = nullptr;
     void*     m_renderUserData             = nullptr;
