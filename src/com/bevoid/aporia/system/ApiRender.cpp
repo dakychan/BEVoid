@@ -124,10 +124,10 @@ int32_t ApiRender::getHeight() const {
 #include <GLES3/gl3.h>
 #include <GLES3/gl3ext.h>
 #include <android/native_activity.h>
-#include <android/native_app_glue.h>
 #include <android/log.h>
 #include <android/input.h>
 #include <android/looper.h>
+#include "android_native_app_glue.h"
 
 #define LOG_TAG "ApiRender"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)

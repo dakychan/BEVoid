@@ -80,6 +80,7 @@ if(ANDROID)
     )
 
     target_include_directories(bevoid PRIVATE
+        ${CMAKE_ANDROID_NDK}/sources/android/native_app_glue
         ${ANDROID_NDK}/sources/android/native_app_glue
     )
 
