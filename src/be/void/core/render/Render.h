@@ -44,7 +44,6 @@ public:
 
     chunk::ChunkManager& getChunkManager() { return m_chunkManager; }
 
-private:
     /* Terrain shader */
     GLuint m_program  = 0;
     GLint  m_uTime    = -1;

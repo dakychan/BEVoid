@@ -112,6 +112,11 @@ int32_t ApiRender::getHeight() const {
     return 0;
 }
 
+void ApiRender::updateChunks(float playerX, float playerZ, float /*dt*/) {
+    /* Stub — чанки обновляются через Render */
+    (void)playerX; (void)playerZ;
+}
+
 } // namespace com::bevoid::aporia::system
 
 /* ============================================================

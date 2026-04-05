@@ -11,25 +11,15 @@
 /*
  * be.void — Game
  *
- * Платформо-независимая реализация.
- * ApiRender создаёт окно/контекст, Core управляет подсистемами.
+ * Чистый GLFW + накопление дельты мыши. Никакого Raw Input.
  */
 
 #include "be/void/Game.h"
 
-#if defined(BEVOID_PLATFORM_WINDOWS)
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
-#endif
-
 /* GLFW — только для десктопа */
 #if !defined(BEVOID_PLATFORM_ANDROID)
 #define GLFW_INCLUDE_NONE
-#define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3.h>
-#include <GLFW/glfw3native.h>
 #include <glad/glad.h>
 #else
 #include <GLES3/gl3.h>
@@ -40,89 +30,22 @@
 #include <cmath>
 #include <chrono>
 
+#if defined(BEVOID_PLATFORM_WINDOWS)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#endif
+
 namespace be::void_ {
 
-/* Глобальные указатели для Win32 callback */
+/* Глобальный указатель */
 static Game* g_game = nullptr;
 static bool  g_mouseInputEnabled = true;
 
-#if defined(BEVOID_PLATFORM_WINDOWS)
-static HWND g_hwnd = nullptr;
-static void* g_oldWndProc = nullptr;
-
-LRESULT CALLBACK bevoidWndProc(void* hwnd, unsigned int msg, unsigned __int64 wParam, __int64 lParam) {
-    switch (msg) {
-        case WM_INPUT: {
-            if (!g_game) break;
-            static bool first = true;
-            if (first) { std::cerr << "[Input] WM_INPUT received! mode=" << g_mouseInputEnabled << "\n"; first = false; }
-            if (!g_mouseInputEnabled) break;
-            RAWINPUT raw;
-            UINT size = sizeof(raw);
-            UINT ret = GetRawInputData((HRAWINPUT)lParam, RID_INPUT, &raw, &size, sizeof(RAWINPUT));
-            if (ret == (UINT)-1) {
-                static bool logged = false;
-                if (!logged) { std::cerr << "[Input] GetRawInputData failed: " << GetLastError() << "\n"; logged = true; }
-                break;
-            }
-            if (raw.header.dwType == RIM_TYPEMOUSE) {
-                long dx = (long)raw.data.mouse.lLastX;
-                long dy = (long)raw.data.mouse.lLastY;
-                if (dx != 0 || dy != 0) {
-                    g_game->getCore().getInput().onMouseMove((double)dx, -(double)dy);
-                }
-            }
-            break;
-        }
-        case WM_KEYDOWN:
-            if (wParam == VK_ESCAPE && g_game) {
-                g_mouseInputEnabled = false;
-                glfwSetInputMode(g_game->getApi()->getWindow(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-                ShowCursor(TRUE);
-            }
-            if (g_game) {
-                int key = 0;
-                switch (wParam) {
-                    case 'W': key = 87; break;
-                    case 'S': key = 83; break;
-                    case 'A': key = 65; break;
-                    case 'D': key = 68; break;
-                    case VK_SPACE: key = 32; break;
-                    case VK_UP: key = 265; break;
-                    case VK_DOWN: key = 264; break;
-                    case VK_LEFT: key = 263; break;
-                    case VK_RIGHT: key = 262; break;
-                }
-                if (key) g_game->getCore().getInput().onKey(key, 1);
-            }
-            break;
-        case WM_KEYUP:
-            if (g_game) {
-                int key = 0;
-                switch (wParam) {
-                    case 'W': key = 87; break;
-                    case 'S': key = 83; break;
-                    case 'A': key = 65; break;
-                    case 'D': key = 68; break;
-                    case VK_SPACE: key = 32; break;
-                }
-                if (key) g_game->getCore().getInput().onKey(key, 0);
-            }
-            break;
-        case WM_LBUTTONDOWN:
-            if (g_game && !g_mouseInputEnabled) {
-                g_mouseInputEnabled = true;
-                glfwSetInputMode(g_game->getApi()->getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-                ShowCursor(FALSE);
-            }
-            break;
-        case WM_DESTROY:
-            ShowCursor(TRUE);
-            break;
-    }
-    return CallWindowProc((WNDPROC)g_oldWndProc, (HWND)hwnd, msg, (WPARAM)wParam, (LPARAM)lParam);
-}
-#endif
+/* Накапливаем дельту мыши в колбэке */
+static double g_mouseAccumX = 0;
+static double g_mouseAccumY = 0;
 
 Game::Game() { g_game = this; }
 Game::~Game() { if (g_game == this) g_game = nullptr; }
@@ -166,33 +89,51 @@ bool Game::initOpenGL() {
         return false;
     }
 
-    /* --- Собственный ввод: Win32 Raw Input + subclass --- */
-#if defined(BEVOID_PLATFORM_WINDOWS)
-    HWND hwnd = glfwGetWin32Window(m_api->getWindow());
-    g_hwnd = hwnd;
-
-    /* Subclass оконной процедуры */
-    g_oldWndProc = (WNDPROC)SetWindowLongPtr(hwnd, GWLP_WNDPROC, (LONG_PTR)bevoidWndProc);
-
-    /* Регистрируем Raw Input для мыши */
-    RAWINPUTDEVICE rid;
-    rid.usUsagePage = 0x01;  /* Generic Desktop */
-    rid.usUsage     = 0x02;  /* Mouse */
-    rid.dwFlags     = RIDEV_INPUTSINK;
-    rid.hwndTarget  = hwnd;
-    if (!RegisterRawInputDevices(&rid, 1, sizeof(rid))) {
-        std::cerr << "[Game] RegisterRawInputDevices failed\n";
-    }
-
-    /* Старт с захваченной мышью */
+    /* --- Мышь: GLFW callback с накоплением дельты --- */
     glfwSetInputMode(m_api->getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-    ShowCursor(FALSE);
+    glfwSetInputMode(m_api->getWindow(), GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
 
-    /* ЛКМ — повторный захват (в subclass) */
-    /* ESC — освобождение (в subclass) */
-    /* Клавиатура — через subclass WM_KEYDOWN/WM_KEYUP */
-#endif /* WINDOWS */
-#endif /* !ANDROID */
+    /* Центрируем курсор */
+    int w, h;
+    glfwGetWindowSize(m_api->getWindow(), &w, &h);
+    glfwSetCursorPos(m_api->getWindow(), w * 0.5, h * 0.5);
+
+    static double lastX = w * 0.5, lastY = h * 0.5;
+    glfwSetCursorPosCallback(m_api->getWindow(), [](GLFWwindow*, double x, double y) {
+        if (g_mouseInputEnabled) {
+            g_mouseAccumX += x - lastX;
+            g_mouseAccumY += y - lastY;
+        }
+        lastX = x;
+        lastY = y;
+    });
+
+    /* Клавиатура */
+    glfwSetKeyCallback(m_api->getWindow(), [](GLFWwindow* win, int key, int, int action, int) {
+        if (g_game) g_game->m_core.getInput().onKey(key, action);
+
+        /* ESC — освободить курсор */
+        if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
+            g_mouseInputEnabled = false;
+            glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            int ww, hh;
+            glfwGetWindowSize(win, &ww, &hh);
+            glfwSetCursorPos(win, ww * 0.5, hh * 0.5);
+        }
+    });
+
+    /* ЛКМ — захватить снова */
+    glfwSetMouseButtonCallback(m_api->getWindow(), [](GLFWwindow* win, int button, int action, int) {
+        if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS && !g_mouseInputEnabled) {
+            g_mouseInputEnabled = true;
+            glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            glfwSetInputMode(win, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+            int ww, hh;
+            glfwGetWindowSize(win, &ww, &hh);
+            glfwSetCursorPos(win, ww * 0.5, hh * 0.5);
+        }
+    });
+#endif
 
     const char* glVer = reinterpret_cast<const char*>(glGetString(GL_VERSION));
     const char* glVen = reinterpret_cast<const char*>(glGetString(GL_VENDOR));
@@ -234,12 +175,17 @@ void Game::shutdown() {
 
 void Game::mainLoop() {
 #if !defined(BEVOID_PLATFORM_ANDROID)
-    std::cerr << "[Game] mainLoop() STARTED\n";
-
     auto lastTick = std::chrono::steady_clock::now();
 
     while (m_running && !m_api->shouldClose()) {
         m_api->pollEvents();
+
+        /* --- Обрабатываем накопленную дельту мыши --- */
+        if (g_mouseInputEnabled && (std::abs(g_mouseAccumX) > 0.01 || std::abs(g_mouseAccumY) > 0.01)) {
+            m_core.getInput().onMouseMove(g_mouseAccumX, g_mouseAccumY);
+            g_mouseAccumX = 0;
+            g_mouseAccumY = 0;
+        }
 
         auto now = std::chrono::steady_clock::now();
         float delta = std::chrono::duration<float>(now - lastTick).count();
@@ -252,8 +198,6 @@ void Game::mainLoop() {
 
         m_api->swapBuffers();
     }
-
-    std::cerr << "[Game] mainLoop() EXIT\n";
 #else
     /* Android: главный цикл в android_main */
 #endif
@@ -276,10 +220,10 @@ int main(int argc, char** argv) {
     return game.run(argc, argv);
 }
 #endif
-#endif /* !BEVOID_PLATFORM_ANDROID */
+#endif
 
 /* ============================================================
- * Entry point — Android (NativeActivity)
+ * Entry point — Android
  * ============================================================ */
 #if defined(BEVOID_PLATFORM_ANDROID)
 #include "android_native_app_glue.h"
@@ -291,7 +235,7 @@ int main(int argc, char** argv) {
 #define ALOGI(...) __android_log_print(ANDROID_LOG_INFO, ALOG_TAG, __VA_ARGS__)
 #define ALOGE(...) __android_log_print(ANDROID_LOG_ERROR, ALOG_TAG, __VA_ARGS__)
 
-static be::void_::Game* g_game = nullptr;
+static be::void_::Game* g_androidGame = nullptr;
 static bool g_running = false;
 static bool g_hasWindow = false;
 static ANativeWindow* g_window = nullptr;
@@ -301,55 +245,39 @@ static void handleCmd(android_app* app, int32_t cmd) {
         case APP_CMD_INIT_WINDOW:
             g_window = app->window;
             g_hasWindow = true;
-            ALOGI("Window initialized");
             break;
         case APP_CMD_TERM_WINDOW: {
-            if (g_game) {
-                auto* api = g_game->getApi();
-                if (api) {
-                    EGLDisplay dpy = reinterpret_cast<EGLDisplay>(api->getEGLDisplay());
-                    EGLSurface surf = reinterpret_cast<EGLSurface>(api->getEGLSurface());
-                    if (dpy && surf) {
-                        eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-                        eglDestroySurface(dpy, surf);
-                        api->setEGLSurface(nullptr);
-                    }
+            if (g_androidGame && g_androidGame->getApi()) {
+                auto* api = g_androidGame->getApi();
+                EGLDisplay dpy = reinterpret_cast<EGLDisplay>(api->getEGLDisplay());
+                EGLSurface surf = reinterpret_cast<EGLSurface>(api->getEGLSurface());
+                if (dpy && surf) {
+                    eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+                    eglDestroySurface(dpy, surf);
+                    api->setEGLSurface(nullptr);
                 }
             }
             g_window = nullptr;
             g_hasWindow = false;
-            ALOGI("Window terminated");
             break;
         }
-        case APP_CMD_GAINED_FOCUS:
-            break;
-        case APP_CMD_LOST_FOCUS:
-            break;
         case APP_CMD_DESTROY:
             g_running = false;
             break;
     }
 }
 
-static int32_t handleInput(android_app* /*app*/, AInputEvent* event) {
+static int32_t handleInput(android_app*, AInputEvent* event) {
+    if (!g_androidGame) return 0;
     int32_t type = AInputEvent_getType(event);
-    if (!g_game) return 0;
-
     if (type == AINPUT_EVENT_TYPE_KEY) {
-        int32_t keyCode = AKeyEvent_getKeyCode(event);
-        int32_t action  = AKeyEvent_getAction(event);
-        g_game->getCore().getInput().onKey(keyCode, action);
-
-        if (keyCode == AKEYCODE_BACK && action == AKEY_EVENT_ACTION_UP) {
-            g_running = false;
-            return 1;
-        }
+        g_androidGame->getCore().getInput().onKey(AKeyEvent_getKeyCode(event), AKeyEvent_getAction(event));
+        if (AKeyEvent_getKeyCode(event) == AKEYCODE_BACK && AKeyEvent_getAction(event) == AKEY_EVENT_ACTION_UP)
+            { g_running = false; return 1; }
         return 1;
     }
     if (type == AINPUT_EVENT_TYPE_MOTION) {
-        float x = AMotionEvent_getX(event, 0);
-        float y = AMotionEvent_getY(event, 0);
-        g_game->getCore().getInput().onMouseMove(x * 0.01f, y * 0.01f);
+        g_androidGame->getCore().getInput().onMouseMove(AMotionEvent_getX(event, 0) * 0.01f, AMotionEvent_getY(event, 0) * 0.01f);
         return 1;
     }
     return 0;
@@ -357,61 +285,37 @@ static int32_t handleInput(android_app* /*app*/, AInputEvent* event) {
 
 extern "C" void android_main(struct android_app* app) {
     be::void_::Game game;
-    g_game = &game;
+    g_androidGame = &game;
     g_running = true;
-
     app->onAppCmd = handleCmd;
     app->onInputEvent = handleInput;
-
-    if (!game.doInitOpenGL()) { ALOGE("Failed to init OpenGL"); return; }
-    if (!game.doInitCore())   { ALOGE("Failed to init Core");   return; }
-
-    auto* api = game.getApi();
-    api->setRenderCallback([](void*) {
-        if (g_game) g_game->doRender();
-    }, nullptr);
-
+    if (!game.doInitOpenGL()) { ALOGE("OpenGL failed"); return; }
+    if (!game.doInitCore())   { ALOGE("Core failed"); return; }
+    game.getApi()->setRenderCallback([](void*) { if (g_androidGame) g_androidGame->doRender(); }, nullptr);
     while (g_running) {
-        int events;
-        struct android_poll_source* source;
-
-        while (ALooper_pollAll(g_hasWindow ? 0 : -1, nullptr,
-                                &events, (void**)&source) >= 0) {
-            if (source) source->process(app, source);
-        }
-
+        int events; struct android_poll_source* source;
+        while (ALooper_pollAll(g_hasWindow ? 0 : -1, nullptr, &events, (void**)&source) >= 0)
+            { if (source) source->process(app, source); }
         if (g_hasWindow && g_window) {
+            auto* api = game.getApi();
             EGLDisplay dpy = reinterpret_cast<EGLDisplay>(api->getEGLDisplay());
             EGLSurface surf = reinterpret_cast<EGLSurface>(api->getEGLSurface());
             EGLConfig* cfg = reinterpret_cast<EGLConfig*>(api->getEGLConfig());
             EGLContext ctx = reinterpret_cast<EGLContext>(api->getEGLContext());
-
             if (surf == EGL_NO_SURFACE && dpy && cfg && ctx) {
                 surf = eglCreateWindowSurface(dpy, *cfg, g_window, nullptr);
-                if (surf == EGL_NO_SURFACE) {
-                    ALOGE("eglCreateWindowSurface failed: 0x%x", eglGetError());
-                } else {
-                    if (!eglMakeCurrent(dpy, surf, surf, ctx)) {
-                        ALOGE("eglMakeCurrent failed: 0x%x", eglGetError());
-                    } else {
-                        int32_t w = ANativeWindow_getWidth(g_window);
-                        int32_t h = ANativeWindow_getHeight(g_window);
-                        glViewport(0, 0, w, h);
-                        api->setEGLSurface(surf);
-                        ALOGI("EGL surface created: %dx%d", w, h);
-                    }
+                if (surf != EGL_NO_SURFACE && eglMakeCurrent(dpy, surf, surf, ctx)) {
+                    glViewport(0, 0, ANativeWindow_getWidth(g_window), ANativeWindow_getHeight(g_window));
+                    api->setEGLSurface(surf);
                 }
             }
-
             if (surf != EGL_NO_SURFACE) {
                 api->callRenderCallback();
                 eglSwapBuffers(dpy, surf);
             }
         }
     }
-
     game.doShutdown();
-    g_game = nullptr;
-    ALOGI("Android main exited");
+    g_androidGame = nullptr;
 }
 #endif

@@ -37,8 +37,8 @@ void Movement::onKey(input::Key key, input::KeyAction action) {
 }
 
 void Movement::onMouseMove(float dx, float dy) {
-    m_yaw   += dx * MOUSE_SENS;
-    m_pitch -= dy * MOUSE_SENS; /* инвертировано — вверх = positive pitch */
+    m_yaw   -= dx * MOUSE_SENS; /* инвертировано — право = правее */
+    m_pitch -= dy * MOUSE_SENS;
     m_pitch = std::clamp(m_pitch, -1.5f, 1.5f);
 }
 
@@ -52,15 +52,15 @@ void Movement::update(float dt, physics::Physics& phys, float terrainHeight) {
 
     float cy = std::cos(m_yaw);
     float sy = std::sin(m_yaw);
-    Vec3 forward = { sy, 0, cy };
-    Vec3 right   = { cy, 0, -sy };
+    Vec3 forward = { -sy, 0, -cy };
+    Vec3 right   = { -cy, 0, sy }; /* A = лево, D = право */
 
     /* Ускорение от ввода */
     physics::Vec3 inputAccel = {0, 0, 0};
     if (m_w) { inputAccel.x += forward.x * MOVE_ACCEL; inputAccel.z += forward.z * MOVE_ACCEL; }
     if (m_s) { inputAccel.x -= forward.x * MOVE_ACCEL; inputAccel.z -= forward.z * MOVE_ACCEL; }
-    if (m_a) { inputAccel.x -= right.x * MOVE_ACCEL;   inputAccel.z -= right.z * MOVE_ACCEL; }
-    if (m_d) { inputAccel.x += right.x * MOVE_ACCEL;   inputAccel.z += right.z * MOVE_ACCEL; }
+    if (m_a) { inputAccel.x += right.x * MOVE_ACCEL;   inputAccel.z += right.z * MOVE_ACCEL; }
+    if (m_d) { inputAccel.x -= right.x * MOVE_ACCEL;   inputAccel.z -= right.z * MOVE_ACCEL; }
 
     /* Physics рассчитывает: гравитация, трение, интеграция, коллизии с террейном */
     phys.step(m_state, inputAccel, dt, m_space, terrainHeight);

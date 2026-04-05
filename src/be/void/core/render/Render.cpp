@@ -259,9 +259,9 @@ void Render::draw(float time, const movement::Vec3& camPos, float yaw, float pit
     glUniform1f(m_uAmbient, st.ambientIntensity);
 
     /* View */
-    float dirX = std::cos(pitch) * std::sin(yaw);
+    float dirX = -std::cos(pitch) * std::sin(yaw);
     float dirY = std::sin(pitch);
-    float dirZ = std::cos(pitch) * std::cos(yaw);
+    float dirZ = -std::cos(pitch) * std::cos(yaw);
     float viewMat[16];
     mat4LookAt(camPos.x, camPos.y, camPos.z,
                camPos.x + dirX, camPos.y + dirY, camPos.z + dirZ,
