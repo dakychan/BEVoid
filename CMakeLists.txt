@@ -6,37 +6,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # ============================================================
-# GLFW — кроссплатформенное окно + OpenGL контекст
-# ============================================================
-include(FetchContent)
-FetchContent_Declare(
-    glfw
-    GIT_REPOSITORY https://github.com/glfw/glfw.git
-    GIT_TAG        3.4
-)
-set(GLFW_BUILD_DOCS     OFF CACHE BOOL "" FORCE)
-set(GLFW_BUILD_TESTS    OFF CACHE BOOL "" FORCE)
-set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(glfw)
-
-# ============================================================
-# Glad — OpenGL loader
-# ============================================================
-set(GLAD_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/third_party/glad)
-if(EXISTS "${GLAD_DIR}/glad.c")
-    add_library(glad STATIC ${GLAD_DIR}/glad.c)
-    target_include_directories(glad PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/third_party
-        ${GLAD_DIR}
-    )
-    if(NOT WIN32)
-        target_link_libraries(glad PRIVATE ${CMAKE_DL_LIBS})
-    endif()
-else()
-    message(FATAL_ERROR "glad.c not found! Generate from https://glad.dav1d.de/")
-endif()
-
-# ============================================================
 # Источники проекта
 # ============================================================
 set(SOURCES_GAME
@@ -59,39 +28,44 @@ set(HEADERS_SYSTEM
 )
 
 # ============================================================
+# Glad — OpenGL loader (всегда нужен)
+# ============================================================
+set(GLAD_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/third_party/glad)
+if(EXISTS "${GLAD_DIR}/glad.c")
+    add_library(glad STATIC ${GLAD_DIR}/glad.c)
+    target_include_directories(glad PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/third_party
+        ${GLAD_DIR}
+    )
+    if(NOT WIN32 AND NOT ANDROID)
+        target_link_libraries(glad PRIVATE ${CMAKE_DL_LIBS})
+    endif()
+else()
+    message(FATAL_ERROR "glad.c not found! Generate from https://glad.dav1d.de/")
+endif()
+
+# ============================================================
 # Desktop: GLFW + OpenGL
 # ============================================================
-if(WIN32)
-    add_executable(bevoid WIN32
-        ${SOURCES_GAME} ${HEADERS_GAME}
-        ${SOURCES_SYSTEM} ${HEADERS_SYSTEM}
+if(WIN32 OR (UNIX AND NOT ANDROID))
+    include(FetchContent)
+    FetchContent_Declare(
+        glfw
+        GIT_REPOSITORY https://github.com/glfw/glfw.git
+        GIT_TAG        3.4
     )
-
-    target_link_libraries(bevoid PRIVATE glfw glad)
-    target_compile_definitions(bevoid PRIVATE BEVOID_PLATFORM_WINDOWS)
-
-elseif(APPLE)
-    add_executable(bevoid
-        ${SOURCES_GAME} ${HEADERS_GAME}
-        ${SOURCES_SYSTEM} ${HEADERS_SYSTEM}
-    )
-
-    target_link_libraries(bevoid PRIVATE glfw glad)
-    target_compile_definitions(bevoid PRIVATE BEVOID_PLATFORM_MACOS)
-
-elseif(UNIX AND NOT ANDROID)
-    add_executable(bevoid
-        ${SOURCES_GAME} ${HEADERS_GAME}
-        ${SOURCES_SYSTEM} ${HEADERS_SYSTEM}
-    )
-
-    target_link_libraries(bevoid PRIVATE glfw glad)
-    target_compile_definitions(bevoid PRIVATE BEVOID_PLATFORM_LINUX)
+    set(GLFW_BUILD_DOCS     OFF CACHE BOOL "" FORCE)
+    set(GLFW_BUILD_TESTS    OFF CACHE BOOL "" FORCE)
+    set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(GLFW_BUILD_WAYLAND  OFF CACHE BOOL "" FORCE)
+    set(GLFW_BUILD_X11      ON  CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(glfw)
+endif()
 
 # ============================================================
-# Android: NativeActivity + EGL
+# Android: NativeActivity + EGL (проверяем ПЕРВЫМ!)
 # ============================================================
-elseif(ANDROID)
+if(ANDROID)
     find_library(log-lib log)
     find_library(android-lib android)
 
@@ -101,7 +75,7 @@ elseif(ANDROID)
     )
 
     target_link_libraries(bevoid PRIVATE
-        ${log-lib} ${android-lib} glad
+        ${log-lib} ${android-lib} glad EGL GLESv3
     )
 
     target_include_directories(bevoid PRIVATE
@@ -109,6 +83,42 @@ elseif(ANDROID)
     )
 
     target_compile_definitions(bevoid PRIVATE BEVOID_PLATFORM_ANDROID)
+
+# ============================================================
+# Desktop: Windows
+# ============================================================
+elseif(WIN32)
+    add_executable(bevoid WIN32
+        ${SOURCES_GAME} ${HEADERS_GAME}
+        ${SOURCES_SYSTEM} ${HEADERS_SYSTEM}
+    )
+
+    target_link_libraries(bevoid PRIVATE glfw glad)
+    target_compile_definitions(bevoid PRIVATE BEVOID_PLATFORM_WINDOWS)
+
+# ============================================================
+# Desktop: macOS
+# ============================================================
+elseif(APPLE)
+    add_executable(bevoid
+        ${SOURCES_GAME} ${HEADERS_GAME}
+        ${SOURCES_SYSTEM} ${HEADERS_SYSTEM}
+    )
+
+    target_link_libraries(bevoid PRIVATE glfw glad)
+    target_compile_definitions(bevoid PRIVATE BEVOID_PLATFORM_MACOS)
+
+# ============================================================
+# Desktop: Linux
+# ============================================================
+elseif(UNIX)
+    add_executable(bevoid
+        ${SOURCES_GAME} ${HEADERS_GAME}
+        ${SOURCES_SYSTEM} ${HEADERS_SYSTEM}
+    )
+
+    target_link_libraries(bevoid PRIVATE glfw glad)
+    target_compile_definitions(bevoid PRIVATE BEVOID_PLATFORM_LINUX)
 
 else()
     message(FATAL_ERROR "Unsupported platform: ${CMAKE_SYSTEM_NAME}")

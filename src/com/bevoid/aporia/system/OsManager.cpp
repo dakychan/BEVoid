@@ -33,6 +33,7 @@
 #elif defined(BEVOID_PLATFORM_ANDROID)
     #include <sys/utsname.h>
     #include <unistd.h>
+    #include <cstdio>
 #endif
 
 namespace com::bevoid::aporia::system {
@@ -114,11 +115,31 @@ void OsManager::detect() {
     if (GlobalMemoryStatusEx(&mem)) {
         m_info.total_ram_mb = static_cast<int64_t>(mem.ullTotalPhys / (1024 * 1024));
     }
-#elif defined(BEVOID_PLATFORM_LINUX) || defined(BEVOID_PLATFORM_MACOS) || defined(BEVOID_PLATFORM_ANDROID)
+#elif defined(BEVOID_PLATFORM_LINUX)
     long pages  = sysconf(_SC_PHYS_PAGES);
     long psize  = sysconf(_SC_PAGE_SIZE);
     if (pages > 0 && psize > 0) {
         m_info.total_ram_mb = static_cast<int64_t>((pages * psize) / (1024 * 1024));
+    }
+#elif defined(BEVOID_PLATFORM_MACOS)
+    int64_t ram = 0;
+    size_t len = sizeof(ram);
+    if (sysctlbyname("hw.memsize", &ram, &len, nullptr, 0) == 0) {
+        m_info.total_ram_mb = static_cast<int64_t>(ram / (1024 * 1024));
+    }
+#elif defined(BEVOID_PLATFORM_ANDROID)
+    /* На Android sysconf(_SC_PHYS_PAGES) недоступен — читаем /proc/meminfo */
+    FILE* f = fopen("/proc/meminfo", "r");
+    if (f) {
+        char line[256];
+        while (fgets(line, sizeof(line), f)) {
+            long long kb = 0;
+            if (sscanf(line, "MemTotal: %lld kB", &kb) == 1) {
+                m_info.total_ram_mb = static_cast<int64_t>(kb / 1024);
+                break;
+            }
+        }
+        fclose(f);
     }
 #endif
 
