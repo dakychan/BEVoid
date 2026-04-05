@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+ * ============================================================
+ * BEVoid Project
+ * Copyright (c) 2025-2026 BEVoid Project
+ * All rights reserved.
+ * Licensed under the BEVoid Software License Agreement v1.0
+ * See LICENSE and COPYRIGHT files in the repository root.
+ * ============================================================
+ -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.bevoid.aporia"
+    android:versionCode="1"
+    android:versionName="0.1.0">
+
+    <uses-feature android:glEsVersion="0x00030000" android:required="true" />
+
+    <application
+        android:label="BEVoid"
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:hasCode="false">
+
+        <!-- NativeActivity — без Java кода -->
+        <activity
+            android:name="android.app.NativeActivity"
+            android:label="BEVoid"
+            android:configChanges="orientation|keyboardHidden|screenSize"
+            android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:launchMode="singleTask"
+            android:exported="true"
+            android:screenOrientation="landscape">
+
+            <meta-data
+                android:name="android.app.lib_name"
+                android:value="bevoid" />
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

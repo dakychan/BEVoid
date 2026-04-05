@@ -1,0 +1,26 @@
+/*
+ * ============================================================
+ * BEVoid Project
+ * Copyright (c) 2025-2026 BEVoid Project
+ * All rights reserved.
+ * ============================================================
+ */
+
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = 'BEVoid'
+include ':app'

@@ -1,0 +1,64 @@
+/*
+ * ============================================================
+ * BEVoid Project
+ * Copyright (c) 2025-2026 BEVoid Project
+ * All rights reserved.
+ * Licensed under the BEVoid Software License Agreement v1.0
+ * See LICENSE and COPYRIGHT files in the repository root.
+ * ============================================================
+ */
+
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.bevoid.aporia'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.bevoid.aporia'
+        minSdk 21
+        targetSdk 34
+        versionCode 1
+        versionName '0.1.0'
+
+        ndk {
+            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
+        }
+
+        externalNativeBuild {
+            cmake {
+                cppFlags '-std=c++20'
+                arguments '-DANDROID_STL=c++_shared'
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path '../../CMakeLists.txt'
+            version '3.22.1'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            debuggable false
+        }
+        debug {
+            debuggable true
+            jniDebuggable true
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+}
+
+dependencies {
+    // Никаких Java зависимостей — pure NativeActivity
+}
