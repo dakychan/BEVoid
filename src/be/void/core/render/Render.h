@@ -11,15 +11,15 @@
 /*
  * be.void.core.render
  *
- * Рендерер — отрисовка геометрии, шейдеры, блоки.
- * Сейчас: базовый VAO/VBO + треугольник.
- * В будущем: чанки, блоки, меши, текстуры.
+ * Terrain renderer — чанки с шумом, 3D камера.
  */
 
 #ifndef BEVOID_RENDER_H
 #define BEVOID_RENDER_H
 
 #include "core/movement/Movement.h"
+#include "core/render/chunk/ChunkManager.h"
+#include "physics/Cycles.h"
 #include <cstdint>
 
 #if defined(BEVOID_PLATFORM_ANDROID)
@@ -35,27 +35,37 @@ public:
     Render();
     ~Render();
 
-    /* Инициализация шейдеров и геометрии */
     bool initShaders();
-    bool initGeometry();
+    bool initChunks();
     void shutdown();
 
-    /* Отрисовка кадра */
     void draw(float time, const movement::Vec3& camPos, float yaw, float pitch);
+    void updateChunks(float playerX, float playerZ, float dt);
 
-    /* Доступ к GL объектам */
-    GLuint getProgram() const { return m_program; }
-    GLint  getUTime()   const { return m_uTime;   }
+    chunk::ChunkManager& getChunkManager() { return m_chunkManager; }
 
 private:
-    GLuint m_vao     = 0;
-    GLuint m_vbo     = 0;
-    GLuint m_ebo     = 0;
-    GLuint m_program = 0;
-    GLint  m_uTime   = -1;
-    GLint  m_uView   = -1;
-    GLint  m_uProj   = -1;
-    int    m_indexCount = 0;
+    /* Terrain shader */
+    GLuint m_program  = 0;
+    GLint  m_uTime    = -1;
+    GLint  m_uView    = -1;
+    GLint  m_uProj    = -1;
+    GLint  m_uCamPos  = -1;
+    GLint  m_uSunDir   = -1;
+    GLint  m_uSunColor = -1;
+    GLint  m_uSkyColor = -1;
+    GLint  m_uAmbient  = -1;
+
+    chunk::ChunkManager m_chunkManager;
+    physics::Cycles     m_cycles;
+
+    /* Кроссхаир */
+    void drawCrosshair();
+    void drawHand();
+
+    /* Математика матриц (column-major для OpenGL) */
+    static void mat4Perspective(float fovY, float aspect, float nearZ, float farZ, float* out);
+    static void mat4LookAt(float ex, float ey, float ez, float cx, float cy, float cz, float* out);
 };
 
 } // namespace be::void_::core::render

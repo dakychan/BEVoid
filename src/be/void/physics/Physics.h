@@ -11,24 +11,44 @@
 /*
  * be.void.physics
  *
- * Физика. Заглушка.
+ * Рассчитывает физику: гравитация, прыжок, трение, коллизии с землёй.
+ * Movement вызывает Physics::step() каждый кадр.
  */
 
 #ifndef BEVOID_PHYSICS_H
 #define BEVOID_PHYSICS_H
 
+#include <cstdint>
+
 namespace be::void_::physics {
+
+struct Vec3 {
+    float x = 0, y = 0, z = 0;
+};
+
+struct PhysicsState {
+    Vec3 position  = {0, 50.0f, -4.0f}; /* высоко над землёй */
+    Vec3 velocity  = {0, 0, 0};
+    bool onGround  = true;
+};
 
 class Physics {
 public:
     Physics() = default;
     ~Physics() = default;
 
-    void update(float deltaTime);
-    void step(float dt);
+    /* Рассчитать физику на dt.
+       inputAccel — ускорение от ввода (WASD).
+       terrainHeight — высота террейна в точке игрока. */
+    void step(PhysicsState& state, Vec3 inputAccel, float dt, bool wantJump, float terrainHeight);
 
-private:
-    float m_gravity = -9.81f;
+    /* Константы */
+    static constexpr float GRAVITY    = -20.0f;
+    static constexpr float FRICTION   = 10.0f;
+    static constexpr float AIR_DRAG   = 0.98f;
+    static constexpr float JUMP_VEL   = 7.0f;
+    static constexpr float MAX_SPEED  = 6.0f;  /* м/с */
+    static constexpr float GROUND_Y  = 0.0f;
 };
 
 } // namespace be::void_::physics

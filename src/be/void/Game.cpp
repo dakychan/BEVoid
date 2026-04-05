@@ -17,10 +17,19 @@
 
 #include "be/void/Game.h"
 
+#if defined(BEVOID_PLATFORM_WINDOWS)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#endif
+
 /* GLFW — только для десктопа */
 #if !defined(BEVOID_PLATFORM_ANDROID)
 #define GLFW_INCLUDE_NONE
+#define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3.h>
+#include <GLFW/glfw3native.h>
 #include <glad/glad.h>
 #else
 #include <GLES3/gl3.h>
@@ -31,17 +40,92 @@
 #include <cmath>
 #include <chrono>
 
-#if defined(BEVOID_PLATFORM_WINDOWS)
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
-#endif
-
 namespace be::void_ {
 
-Game::Game() = default;
-Game::~Game() = default;
+/* Глобальные указатели для Win32 callback */
+static Game* g_game = nullptr;
+static bool  g_mouseInputEnabled = true;
+
+#if defined(BEVOID_PLATFORM_WINDOWS)
+static HWND g_hwnd = nullptr;
+static void* g_oldWndProc = nullptr;
+
+LRESULT CALLBACK bevoidWndProc(void* hwnd, unsigned int msg, unsigned __int64 wParam, __int64 lParam) {
+    switch (msg) {
+        case WM_INPUT: {
+            if (!g_game) break;
+            static bool first = true;
+            if (first) { std::cerr << "[Input] WM_INPUT received! mode=" << g_mouseInputEnabled << "\n"; first = false; }
+            if (!g_mouseInputEnabled) break;
+            RAWINPUT raw;
+            UINT size = sizeof(raw);
+            UINT ret = GetRawInputData((HRAWINPUT)lParam, RID_INPUT, &raw, &size, sizeof(RAWINPUT));
+            if (ret == (UINT)-1) {
+                static bool logged = false;
+                if (!logged) { std::cerr << "[Input] GetRawInputData failed: " << GetLastError() << "\n"; logged = true; }
+                break;
+            }
+            if (raw.header.dwType == RIM_TYPEMOUSE) {
+                long dx = (long)raw.data.mouse.lLastX;
+                long dy = (long)raw.data.mouse.lLastY;
+                if (dx != 0 || dy != 0) {
+                    g_game->getCore().getInput().onMouseMove((double)dx, -(double)dy);
+                }
+            }
+            break;
+        }
+        case WM_KEYDOWN:
+            if (wParam == VK_ESCAPE && g_game) {
+                g_mouseInputEnabled = false;
+                glfwSetInputMode(g_game->getApi()->getWindow(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+                ShowCursor(TRUE);
+            }
+            if (g_game) {
+                int key = 0;
+                switch (wParam) {
+                    case 'W': key = 87; break;
+                    case 'S': key = 83; break;
+                    case 'A': key = 65; break;
+                    case 'D': key = 68; break;
+                    case VK_SPACE: key = 32; break;
+                    case VK_UP: key = 265; break;
+                    case VK_DOWN: key = 264; break;
+                    case VK_LEFT: key = 263; break;
+                    case VK_RIGHT: key = 262; break;
+                }
+                if (key) g_game->getCore().getInput().onKey(key, 1);
+            }
+            break;
+        case WM_KEYUP:
+            if (g_game) {
+                int key = 0;
+                switch (wParam) {
+                    case 'W': key = 87; break;
+                    case 'S': key = 83; break;
+                    case 'A': key = 65; break;
+                    case 'D': key = 68; break;
+                    case VK_SPACE: key = 32; break;
+                }
+                if (key) g_game->getCore().getInput().onKey(key, 0);
+            }
+            break;
+        case WM_LBUTTONDOWN:
+            if (g_game && !g_mouseInputEnabled) {
+                g_mouseInputEnabled = true;
+                glfwSetInputMode(g_game->getApi()->getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+                ShowCursor(FALSE);
+            }
+            break;
+        case WM_DESTROY:
+            ShowCursor(TRUE);
+            break;
+    }
+    return CallWindowProc((WNDPROC)g_oldWndProc, (HWND)hwnd, msg, (WPARAM)wParam, (LPARAM)lParam);
+}
+#endif
+
+Game::Game() { g_game = this; }
+Game::~Game() { if (g_game == this) g_game = nullptr; }
 
 /* --- Public wrappers for Android --- */
 bool Game::doInitOpenGL() { return initOpenGL(); }
@@ -82,25 +166,33 @@ bool Game::initOpenGL() {
         return false;
     }
 
-    /* --- Ввод для Movement --- */
-    glfwSetInputMode(m_api->getWindow(), GLFW_CURSOR, 0x00030001); /* GLFW_DISABLED */
+    /* --- Собственный ввод: Win32 Raw Input + subclass --- */
+#if defined(BEVOID_PLATFORM_WINDOWS)
+    HWND hwnd = glfwGetWin32Window(m_api->getWindow());
+    g_hwnd = hwnd;
 
-    glfwSetKeyCallback(m_api->getWindow(), [](GLFWwindow*, int key, int, int action, int) {
-        /* Глобальный Game указатель — через WindowUserPointer */
-        auto* self = static_cast<Game*>(glfwGetWindowUserPointer(glfwGetCurrentContext()));
-        if (self) {
-            self->m_core.getMovement().onKey(key, action != GLFW_RELEASE);
-        }
-    });
+    /* Subclass оконной процедуры */
+    g_oldWndProc = (WNDPROC)SetWindowLongPtr(hwnd, GWLP_WNDPROC, (LONG_PTR)bevoidWndProc);
 
-    glfwSetCursorPosCallback(m_api->getWindow(), [](GLFWwindow*, double dx, double dy) {
-        auto* self = static_cast<Game*>(glfwGetWindowUserPointer(glfwGetCurrentContext()));
-        if (self) {
-            self->m_core.getMovement().onMouseMove(static_cast<float>(dx),
-                                                    static_cast<float>(dy));
-        }
-    });
-#endif
+    /* Регистрируем Raw Input для мыши */
+    RAWINPUTDEVICE rid;
+    rid.usUsagePage = 0x01;  /* Generic Desktop */
+    rid.usUsage     = 0x02;  /* Mouse */
+    rid.dwFlags     = RIDEV_INPUTSINK;
+    rid.hwndTarget  = hwnd;
+    if (!RegisterRawInputDevices(&rid, 1, sizeof(rid))) {
+        std::cerr << "[Game] RegisterRawInputDevices failed\n";
+    }
+
+    /* Старт с захваченной мышью */
+    glfwSetInputMode(m_api->getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    ShowCursor(FALSE);
+
+    /* ЛКМ — повторный захват (в subclass) */
+    /* ESC — освобождение (в subclass) */
+    /* Клавиатура — через subclass WM_KEYDOWN/WM_KEYUP */
+#endif /* WINDOWS */
+#endif /* !ANDROID */
 
     const char* glVer = reinterpret_cast<const char*>(glGetString(GL_VERSION));
     const char* glVen = reinterpret_cast<const char*>(glGetString(GL_VENDOR));
@@ -241,32 +333,23 @@ static void handleCmd(android_app* app, int32_t cmd) {
 
 static int32_t handleInput(android_app* /*app*/, AInputEvent* event) {
     int32_t type = AInputEvent_getType(event);
+    if (!g_game) return 0;
+
     if (type == AINPUT_EVENT_TYPE_KEY) {
         int32_t keyCode = AKeyEvent_getKeyCode(event);
-        int32_t action = AKeyEvent_getAction(event);
-        bool pressed = (action == AKEY_EVENT_ACTION_DOWN);
-        bool released = (action == AKEY_EVENT_ACTION_UP);
+        int32_t action  = AKeyEvent_getAction(event);
+        g_game->getCore().getInput().onKey(keyCode, action);
 
-        if (g_game) {
-            if (pressed || released) {
-                g_game->m_core.getMovement().onKey(keyCode, pressed);
-            }
-        }
-
-        if (keyCode == AKEYCODE_BACK && released) {
+        if (keyCode == AKEYCODE_BACK && action == AKEY_EVENT_ACTION_UP) {
             g_running = false;
             return 1;
         }
         return 1;
     }
-    /* Touch input for camera look */
     if (type == AINPUT_EVENT_TYPE_MOTION) {
-        if (g_game) {
-            float x = AMotionEvent_getX(event, 0);
-            float y = AMotionEvent_getY(event, 0);
-            /* Simple: pass delta as mouse move */
-            g_game->m_core.getMovement().onMouseMove(x * 0.01f, y * 0.01f);
-        }
+        float x = AMotionEvent_getX(event, 0);
+        float y = AMotionEvent_getY(event, 0);
+        g_game->getCore().getInput().onMouseMove(x * 0.01f, y * 0.01f);
         return 1;
     }
     return 0;

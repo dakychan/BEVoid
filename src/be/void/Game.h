@@ -37,7 +37,8 @@ public:
     void doRender();
     void doShutdown();
 
-    /* Доступ к ApiRender для Android */
+    /* Доступ к подсистемам для Win32 callbacks */
+    core::Core& getCore()  { return m_core;  }
     com::bevoid::aporia::system::ApiRender* getApi() { return m_api.get(); }
 
 private:

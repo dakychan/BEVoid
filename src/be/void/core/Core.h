@@ -20,9 +20,11 @@
 
 #include "core/render/Render.h"
 #include "core/movement/Movement.h"
+#include "core/input/Input.h"
 #include "network/Network.h"
 #include "physics/Physics.h"
 #include <memory>
+#include <thread>
 
 namespace be::void_::core {
 
@@ -42,12 +44,14 @@ public:
     /* Доступ к подсистемам */
     render::Render&     getRender()   { return m_render;   }
     movement::Movement& getMovement() { return m_movement; }
+    input::Input&       getInput()    { return m_input;    }
     network::Network&   getNetwork()  { return m_network;  }
     physics::Physics&   getPhysics()  { return m_physics;  }
 
 private:
     render::Render     m_render;
     movement::Movement m_movement;
+    input::Input       m_input;
     network::Network   m_network;
     physics::Physics   m_physics;
 };

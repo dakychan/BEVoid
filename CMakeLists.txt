@@ -12,18 +12,28 @@ set(SOURCES_GAME
     src/be/void/Game.cpp
     src/be/void/core/Core.cpp
     src/be/void/core/render/Render.cpp
+    src/be/void/core/render/chunk/Chunk.cpp
+    src/be/void/core/render/chunk/ChunkManager.cpp
+    src/be/void/core/render/chunk/Noise.cpp
     src/be/void/core/movement/Movement.cpp
+    src/be/void/core/input/Input.cpp
     src/be/void/network/Network.cpp
     src/be/void/physics/Physics.cpp
+    src/be/void/physics/Cycles.cpp
 )
 
 set(HEADERS_GAME
     src/be/void/Game.h
     src/be/void/core/Core.h
     src/be/void/core/render/Render.h
+    src/be/void/core/render/chunk/Chunk.h
+    src/be/void/core/render/chunk/ChunkManager.h
+    src/be/void/core/render/chunk/Noise.h
     src/be/void/core/movement/Movement.h
+    src/be/void/core/input/Input.h
     src/be/void/network/Network.h
     src/be/void/physics/Physics.h
+    src/be/void/physics/Cycles.h
 )
 
 set(SOURCES_SYSTEM
@@ -105,7 +115,7 @@ elseif(WIN32)
         ${SOURCES_SYSTEM} ${HEADERS_SYSTEM}
     )
 
-    target_link_libraries(bevoid PRIVATE glfw glad)
+    target_link_libraries(bevoid PRIVATE glfw glad user32)
     target_compile_definitions(bevoid PRIVATE BEVOID_PLATFORM_WINDOWS)
 
 # ============================================================

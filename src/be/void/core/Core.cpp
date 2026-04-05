@@ -25,12 +25,14 @@ Core::~Core() = default;
 bool Core::init() {
     std::cout << "[Core] Initializing subsystems...\n";
 
+    m_input.setListener(&m_movement);
+
     if (!m_render.initShaders()) {
         std::cerr << "[Core] Failed to init shaders\n";
         return false;
     }
-    if (!m_render.initGeometry()) {
-        std::cerr << "[Core] Failed to init geometry\n";
+    if (!m_render.initChunks()) {
+        std::cerr << "[Core] Failed to init chunks\n";
         return false;
     }
 
@@ -44,9 +46,15 @@ void Core::shutdown() {
 }
 
 void Core::update(float deltaTime) {
-    m_movement.update(deltaTime);
+    /* Получаем позицию и высоту террейна под игроком */
+    auto camPos = m_movement.getCameraPos();
+    float terrainH = m_render.getChunkManager().getTerrainHeight(camPos.x, camPos.z);
+
+    m_movement.update(deltaTime, m_physics, terrainH);
     m_network.update(deltaTime);
-    m_physics.update(deltaTime);
+
+    /* Обновить чанки вокруг игрока (в фоне) */
+    m_render.updateChunks(camPos.x, camPos.z, deltaTime);
 }
 
 void Core::render(float time) {
