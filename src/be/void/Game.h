@@ -9,18 +9,17 @@
  */
 
 /*
- * BEVoid Project — be.void (core game)
+ * be.void — Game (тонкая обёртка над Core)
  *
- * Game — главный класс игры.
- * Платформо-независимый — использует ApiRender (GLFW + OpenGL).
+ * Game управляет ApiRender (окно/контекст) и Core (подсистемы).
  */
 
 #ifndef BEVOID_GAME_H
 #define BEVOID_GAME_H
 
+#include "core/Core.h"
 #include "com/bevoid/aporia/system/ApiRender.h"
 #include <memory>
-#include <cstdint>
 
 namespace be::void_ {
 
@@ -29,13 +28,12 @@ public:
     Game();
     ~Game();
 
-    /* Запустить игру (desktop) */
+    /* Запустить игру */
     int run(int argc, char** argv);
 
     /* Публичные методы для Android entry point */
     bool doInitOpenGL();
-    bool doInitShaders();
-    bool doInitGeometry();
+    bool doInitCore();
     void doRender();
     void doShutdown();
 
@@ -44,19 +42,13 @@ public:
 
 private:
     bool   initOpenGL();
-    bool   initShaders();
-    bool   initGeometry();
     void   shutdown();
     void   mainLoop();
-    void   update(float deltaTime);
-    void   render();
-
-    struct Impl;
-    std::unique_ptr<Impl> pImpl;
 
     std::unique_ptr<com::bevoid::aporia::system::ApiRender> m_api;
-    float m_time = 0.0f;
-    bool  m_running = false;
+    core::Core m_core;
+    float  m_time = 0.0f;
+    bool   m_running = false;
 };
 
 } // namespace be::void_

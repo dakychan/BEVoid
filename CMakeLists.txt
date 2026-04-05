@@ -10,10 +10,20 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # ============================================================
 set(SOURCES_GAME
     src/be/void/Game.cpp
+    src/be/void/core/Core.cpp
+    src/be/void/core/render/Render.cpp
+    src/be/void/core/movement/Movement.cpp
+    src/be/void/network/Network.cpp
+    src/be/void/physics/Physics.cpp
 )
 
 set(HEADERS_GAME
     src/be/void/Game.h
+    src/be/void/core/Core.h
+    src/be/void/core/render/Render.h
+    src/be/void/core/movement/Movement.h
+    src/be/void/network/Network.h
+    src/be/void/physics/Physics.h
 )
 
 set(SOURCES_SYSTEM
