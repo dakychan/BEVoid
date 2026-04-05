@@ -1,0 +1,67 @@
+# ============================================================
+# BEVoid — Linux Build CI
+# ============================================================
+name: Linux Build
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            libx11-dev \
+            libxrandr-dev \
+            libxinerama-dev \
+            libxcursor-dev \
+            libxi-dev \
+            libgl1-mesa-dev \
+            xorg-dev
+
+      - name: Verify glad
+        run: |
+          if [ ! -f src/third_party/glad/glad.c ]; then
+            echo "ERROR: glad.c not found!"
+            echo "Generate from https://glad.dav1d.de/ (OpenGL 3.3 Core)"
+            exit 1
+          fi
+          echo "glad.c found"
+
+      - name: CMake Configure
+        run: |
+          mkdir -p build-linux
+          cd build-linux
+          cmake .. -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_COMPILER=g++ \
+            -DCMAKE_C_COMPILER=gcc
+
+      - name: Build
+        run: |
+          cd build-linux
+          cmake --build . --config Release -j$(nproc)
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bevoid-linux
+          path: build-linux/bevoid
+          retention-days: 30
+
+      - name: Verify binary
+        run: |
+          file build-linux/bevoid
+          ldd build-linux/bevoid || true
+          echo "Build successful!"
