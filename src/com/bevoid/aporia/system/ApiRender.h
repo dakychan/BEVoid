@@ -40,7 +40,9 @@ public:
     void shutdown();
 
     /* Доступ */
+#if !defined(BEVOID_PLATFORM_ANDROID)
     GLFWwindow*  getWindow() const { return m_window; }
+#endif
     const OsManager& getOsManager() const { return m_osManager; }
 
     /* Удобные методы */
@@ -50,7 +52,7 @@ public:
     int32_t getWidth() const;
     int32_t getHeight() const;
 
-    /* Callback для рендера из главного потока (вызывается из ApiRender::pollEvents) */
+    /* Callback для рендера */
     void setRenderCallback(void (*callback)(void* userData), void* userData) {
         m_renderCallback = callback;
         m_renderUserData  = userData;
@@ -60,11 +62,16 @@ public:
     }
 
 private:
-    OsManager   m_osManager;
-    GLFWwindow* m_window = nullptr;
+    OsManager m_osManager;
 
+#if !defined(BEVOID_PLATFORM_ANDROID)
+    GLFWwindow* m_window = nullptr;
     void (*m_renderCallback)(void* userData) = nullptr;
     void*     m_renderUserData             = nullptr;
+#else
+    struct AndroidState;
+    std::unique_ptr<AndroidState> m_androidState;
+#endif
 };
 
 } // namespace com::bevoid::aporia::system

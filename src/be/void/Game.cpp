@@ -18,10 +18,13 @@
 
 #include "be/void/Game.h"
 
-/* GLFW без gl.h — glad вместо него */
+/* GLFW — только для десктопа */
+#if !defined(BEVOID_PLATFORM_ANDROID)
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 #include <glad/glad.h>
+#endif
+
 #include <iostream>
 #include <cmath>
 #include <vector>
@@ -284,8 +287,9 @@ void Game::render() {
 } // namespace be::void_
 
 /* ============================================================
- * Entry point
+ * Entry point — Desktop
  * ============================================================ */
+#if !defined(BEVOID_PLATFORM_ANDROID)
 #if defined(BEVOID_PLATFORM_WINDOWS)
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     be::void_::Game game;
@@ -297,3 +301,4 @@ int main(int argc, char** argv) {
     return game.run(argc, argv);
 }
 #endif
+#endif /* !BEVOID_PLATFORM_ANDROID */
