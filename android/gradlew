@@ -1,0 +1,21 @@
+#!/bin/sh
+# Gradle wrapper — delegates to system Gradle if available,
+# otherwise downloads it using the wrapper properties.
+
+GRADLE_VERSION=8.2
+GRADLE_HOME="$HOME/.gradle/wrapper/dists/gradle-${GRADLE_VERSION}-bin"
+
+if command -v gradle >/dev/null 2>&1; then
+    exec gradle "$@"
+fi
+
+if [ -d "$GRADLE_HOME/gradle-${GRADLE_VERSION}" ]; then
+    exec "$GRADLE_HOME/gradle-${GRADLE_VERSION}/bin/gradle" "$@"
+fi
+
+echo "Downloading Gradle ${GRADLE_VERSION}..."
+mkdir -p "$GRADLE_HOME"
+curl -fsSL "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" -o "$GRADLE_HOME/gradle.zip"
+unzip -q "$GRADLE_HOME/gradle.zip" -d "$GRADLE_HOME"
+rm "$GRADLE_HOME/gradle.zip"
+exec "$GRADLE_HOME/gradle-${GRADLE_VERSION}/bin/gradle" "$@"

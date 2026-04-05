@@ -83,6 +83,12 @@ private:
 
 #if !defined(BEVOID_PLATFORM_ANDROID)
     GLFWwindow* m_window = nullptr;
+    /* Пустая структура чтобы unique_ptr имел полный тип */
+    struct AndroidState {};
+    std::unique_ptr<AndroidState> m_androidState;
+#else
+    struct AndroidState;
+    std::unique_ptr<AndroidState> m_androidState;
 #endif
 
     void (*m_renderCallback)(void* userData) = nullptr;
