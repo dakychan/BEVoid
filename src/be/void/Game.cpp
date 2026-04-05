@@ -96,6 +96,13 @@ struct Game::Impl {
 Game::Game() : pImpl(std::make_unique<Impl>()) {}
 Game::~Game() = default;
 
+/* --- Public wrappers for Android entry point --- */
+bool Game::doInitOpenGL()    { return initOpenGL(); }
+bool Game::doInitShaders()   { return initShaders(); }
+bool Game::doInitGeometry()  { return initGeometry(); }
+void Game::doRender()        { render(); }
+void Game::doShutdown()      { shutdown(); }
+
 int Game::run(int /*argc*/, char** /*argv*/) {
     if (!initOpenGL()) {
         std::cerr << "[Game] Failed to initialize OpenGL\n";
@@ -154,28 +161,32 @@ static GLuint linkProgram(GLuint vs, GLuint fs) {
 }
 
 bool Game::initOpenGL() {
-    /* Создаём ApiRender — GLFW + OpenGL */
+    /* Создаём ApiRender — GLFW+OpenGL (desktop) или EGL+GLES3 (Android) */
     m_api = std::make_unique<com::bevoid::aporia::system::ApiRender>();
     if (!m_api->create("BEVoid", 1280, 720)) {
         std::cerr << "[Game] ApiRender::create failed\n";
         return false;
     }
 
-    /* glad — загружаем OpenGL функции */
+#if !defined(BEVOID_PLATFORM_ANDROID)
+    /* Desktop: загружаем OpenGL функции через glad */
     if (!gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress))) {
         std::cerr << "[Game] gladLoadGL failed\n";
         shutdown();
         return false;
     }
+#endif
 
-    /* GL Info */
+    /* GL Info — работает на всех платформах */
     const char* glVer = reinterpret_cast<const char*>(glGetString(GL_VERSION));
     const char* glVen = reinterpret_cast<const char*>(glGetString(GL_VENDOR));
     const char* glRen = reinterpret_cast<const char*>(glGetString(GL_RENDERER));
 
+#if !defined(BEVOID_PLATFORM_ANDROID)
     std::cout << "[Game] OpenGL " << (glVer ? glVer : "?") << "\n";
     std::cout << "[Game] Vendor  : " << (glVen ? glVen : "?") << "\n";
     std::cout << "[Game] Renderer: " << (glRen ? glRen : "?") << "\n";
+#endif
 
     /* Обновляем OsManager GPU инфой */
     auto& info = const_cast<com::bevoid::aporia::system::SystemInfo&>(
@@ -186,11 +197,13 @@ bool Game::initOpenGL() {
 
     glEnable(GL_DEPTH_TEST);
 
+#if !defined(BEVOID_PLATFORM_ANDROID)
     /* --- Render callback для перерисовки во время drag/resize --- */
     m_api->setRenderCallback([](void* userData) {
         auto* game = static_cast<Game*>(userData);
         game->render();
     }, this);
+#endif
 
     m_running = true;
     return true;
@@ -254,6 +267,7 @@ void Game::shutdown() {
 }
 
 void Game::mainLoop() {
+#if !defined(BEVOID_PLATFORM_ANDROID)
     auto lastTick = std::chrono::steady_clock::now();
 
     while (m_running && !m_api->shouldClose()) {
@@ -270,6 +284,10 @@ void Game::mainLoop() {
 
         m_api->swapBuffers();
     }
+#else
+    /* Android: главный цикл в android_main (ApiRender.cpp) */
+    /* Game::render() вызывается через callback */
+#endif
 }
 
 void Game::update(float /*deltaTime*/) {
@@ -306,3 +324,23 @@ int main(int argc, char** argv) {
 }
 #endif
 #endif /* !BEVOID_PLATFORM_ANDROID */
+
+/* ============================================================
+ * Entry point — Android (NativeActivity)
+ * ============================================================ */
+#if defined(BEVOID_PLATFORM_ANDROID)
+#include "android_native_app_glue.h"
+
+extern "C" void android_main(struct android_app* app) {
+    be::void_::Game game;
+
+    /* initOpenGL создаёт ApiRender с EGL */
+    if (!game.initOpenGL()) return;
+    if (!game.initShaders()) return;
+    if (!game.initGeometry()) return;
+
+    /* ApiRender::android_main берёт управление */
+    /* Game::render() вызывается через callback */
+    /* TODO: нужно передать game в ApiRender для render callback */
+}
+#endif

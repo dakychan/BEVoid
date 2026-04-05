@@ -29,8 +29,15 @@ public:
     Game();
     ~Game();
 
-    /* Запустить игру */
+    /* Запустить игру (desktop) */
     int run(int argc, char** argv);
+
+    /* Публичные методы для Android entry point */
+    bool doInitOpenGL();
+    bool doInitShaders();
+    bool doInitGeometry();
+    void doRender();
+    void doShutdown();
 
 private:
     bool   initOpenGL();

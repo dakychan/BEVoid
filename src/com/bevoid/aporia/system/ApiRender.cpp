@@ -299,56 +299,6 @@ int32_t ApiRender::getHeight() const {
     return m_androidState->height;
 }
 
-/* Android entry point — вызывается из native_app_glue */
-void android_main(struct android_app* app) {
-    auto* state = g_apiRender->m_androidState.get();
-    state->activity = app->activity;
-    state->app = app;
-    state->running = true;
-
-    app->onAppCmd = handleCmd;
-    app->onInputEvent = handleInput;
-
-    /* Главный цикл */
-    while (state->running) {
-        int events;
-        struct android_poll_source* source;
-
-        /* 0 = не блокировать при рендеринге */
-        while (ALooper_pollAll(state->hasWindow ? 0 : -1, nullptr,
-                                &events, (void**)&source) >= 0) {
-            if (source) source->process(app, source);
-        }
-
-        /* Создаём surface если окно появилось */
-        if (state->hasWindow && state->window &&
-            state->eglSurface == EGL_NO_SURFACE) {
-            state->eglSurface = eglCreateWindowSurface(
-                state->eglDisplay, state->eglConfig, state->window, nullptr);
-            if (state->eglSurface == EGL_NO_SURFACE) {
-                LOGE("eglCreateWindowSurface failed: 0x%x", eglGetError());
-            } else {
-                if (!eglMakeCurrent(state->eglDisplay, state->eglSurface,
-                                    state->eglSurface, state->eglContext)) {
-                    LOGE("eglMakeCurrent failed: 0x%x", eglGetError());
-                } else {
-                    state->width  = ANativeWindow_getWidth(state->window);
-                    state->height = ANativeWindow_getHeight(state->window);
-                    glViewport(0, 0, state->width, state->height);
-                    LOGI("EGL surface created: %dx%d",
-                         state->width, state->height);
-                }
-            }
-        }
-
-        /* Рендер */
-        if (state->eglSurface != EGL_NO_SURFACE && state->hasFocus) {
-            g_apiRender->callRenderCallback();
-            eglSwapBuffers(state->eglDisplay, state->eglSurface);
-        }
-    }
-}
-
 } // namespace com::bevoid::aporia::system
 
 #endif /* BEVOID_PLATFORM_ANDROID */
