@@ -50,7 +50,8 @@ void Core::update(float deltaTime) {
 }
 
 void Core::render(float time) {
-    m_render.draw(time);
+    auto& mv = m_movement;
+    m_render.draw(time, mv.getCameraPos(), mv.getYaw(), mv.getPitch());
 }
 
 } // namespace be::void_::core

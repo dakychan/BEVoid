@@ -141,6 +141,7 @@ endif()
 # ============================================================
 target_include_directories(bevoid PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/be/void
     ${CMAKE_CURRENT_SOURCE_DIR}/src/com/bevoid/aporia
 )
 

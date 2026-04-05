@@ -19,6 +19,7 @@
 #ifndef BEVOID_RENDER_H
 #define BEVOID_RENDER_H
 
+#include "core/movement/Movement.h"
 #include <cstdint>
 
 #if defined(BEVOID_PLATFORM_ANDROID)
@@ -40,7 +41,7 @@ public:
     void shutdown();
 
     /* Отрисовка кадра */
-    void draw(float time);
+    void draw(float time, const movement::Vec3& camPos, float yaw, float pitch);
 
     /* Доступ к GL объектам */
     GLuint getProgram() const { return m_program; }
@@ -49,9 +50,12 @@ public:
 private:
     GLuint m_vao     = 0;
     GLuint m_vbo     = 0;
+    GLuint m_ebo     = 0;
     GLuint m_program = 0;
     GLint  m_uTime   = -1;
-    int    m_vertCount = 0;
+    GLint  m_uView   = -1;
+    GLint  m_uProj   = -1;
+    int    m_indexCount = 0;
 };
 
 } // namespace be::void_::core::render

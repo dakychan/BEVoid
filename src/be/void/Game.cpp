@@ -81,6 +81,25 @@ bool Game::initOpenGL() {
         shutdown();
         return false;
     }
+
+    /* --- Ввод для Movement --- */
+    glfwSetInputMode(m_api->getWindow(), GLFW_CURSOR, 0x00030001); /* GLFW_DISABLED */
+
+    glfwSetKeyCallback(m_api->getWindow(), [](GLFWwindow*, int key, int, int action, int) {
+        /* Глобальный Game указатель — через WindowUserPointer */
+        auto* self = static_cast<Game*>(glfwGetWindowUserPointer(glfwGetCurrentContext()));
+        if (self) {
+            self->m_core.getMovement().onKey(key, action != GLFW_RELEASE);
+        }
+    });
+
+    glfwSetCursorPosCallback(m_api->getWindow(), [](GLFWwindow*, double dx, double dy) {
+        auto* self = static_cast<Game*>(glfwGetWindowUserPointer(glfwGetCurrentContext()));
+        if (self) {
+            self->m_core.getMovement().onMouseMove(static_cast<float>(dx),
+                                                    static_cast<float>(dy));
+        }
+    });
 #endif
 
     const char* glVer = reinterpret_cast<const char*>(glGetString(GL_VERSION));
@@ -217,11 +236,34 @@ static void handleCmd(android_app* app, int32_t cmd) {
 }
 
 static int32_t handleInput(android_app* /*app*/, AInputEvent* event) {
-    if (AInputEvent_getType(event) == AINPUT_EVENT_TYPE_KEY) {
-        if (AKeyEvent_getKeyCode(event) == AKEYCODE_BACK) {
+    int32_t type = AInputEvent_getType(event);
+    if (type == AINPUT_EVENT_TYPE_KEY) {
+        int32_t keyCode = AKeyEvent_getKeyCode(event);
+        int32_t action = AKeyEvent_getAction(event);
+        bool pressed = (action == AKEY_EVENT_ACTION_DOWN);
+        bool released = (action == AKEY_EVENT_ACTION_UP);
+
+        if (g_game) {
+            if (pressed || released) {
+                g_game->m_core.getMovement().onKey(keyCode, pressed);
+            }
+        }
+
+        if (keyCode == AKEYCODE_BACK && released) {
             g_running = false;
             return 1;
         }
+        return 1;
+    }
+    /* Touch input for camera look */
+    if (type == AINPUT_EVENT_TYPE_MOTION) {
+        if (g_game) {
+            float x = AMotionEvent_getX(event, 0);
+            float y = AMotionEvent_getY(event, 0);
+            /* Simple: pass delta as mouse move */
+            g_game->m_core.getMovement().onMouseMove(x * 0.01f, y * 0.01f);
+        }
+        return 1;
     }
     return 0;
 }
