@@ -68,8 +68,8 @@ jobs:
       - name: Build APK
         run: |
           cd android
-          chmod +x gradlew 2>/dev/null || true
-          ./gradlew assembleDebug || ../gradlew assembleDebug || true
+          chmod +x gradlew
+          ./gradlew assembleDebug
 
       - name: Upload .so artifact
         uses: actions/upload-artifact@v4
@@ -84,7 +84,6 @@ jobs:
           name: bevoid-apk
           path: |
             android/app/build/outputs/apk/debug/*.apk
-            android/app/build/outputs/apk/release/*.apk
           retention-days: 30
           if-no-files-found: warn
 

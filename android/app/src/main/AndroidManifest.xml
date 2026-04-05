@@ -17,7 +17,6 @@
 
     <application
         android:label="BEVoid"
-        android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"
         android:hasCode="false">
 
