@@ -299,6 +299,37 @@ int32_t ApiRender::getHeight() const {
     return m_androidState->height;
 }
 
+#if defined(BEVOID_PLATFORM_ANDROID)
+void* ApiRender::getAndroidActivity() const {
+    return m_androidState->activity;
+}
+void* ApiRender::getAndroidWindow() const {
+    return m_androidState->window;
+}
+void* ApiRender::getEGLDisplay() const {
+    return m_androidState->eglDisplay;
+}
+void* ApiRender::getEGLSurface() const {
+    return m_androidState->eglSurface;
+}
+void* ApiRender::getEGLContext() const {
+    return m_androidState->eglContext;
+}
+void* ApiRender::getEGLConfig() const {
+    return &m_androidState->eglConfig;
+}
+void ApiRender::setEGLSurface(void* surface) {
+    m_androidState->eglSurface = reinterpret_cast<EGLSurface>(surface);
+}
+void ApiRender::onAndroidWindowCreated() {
+    /* Will be called from android_main when window is ready */
+}
+void ApiRender::onAndroidWindowDestroyed() {
+    m_androidState->window = nullptr;
+    m_androidState->hasWindow = false;
+}
+#endif
+
 } // namespace com::bevoid::aporia::system
 
 #endif /* BEVOID_PLATFORM_ANDROID */

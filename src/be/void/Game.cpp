@@ -330,17 +330,135 @@ int main(int argc, char** argv) {
  * ============================================================ */
 #if defined(BEVOID_PLATFORM_ANDROID)
 #include "android_native_app_glue.h"
+#include <EGL/egl.h>
+#include <GLES3/gl3.h>
+#include <android/log.h>
+
+#define ALOG_TAG "BEVoid"
+#define ALOGI(...) __android_log_print(ANDROID_LOG_INFO, ALOG_TAG, __VA_ARGS__)
+#define ALOGE(...) __android_log_print(ANDROID_LOG_ERROR, ALOG_TAG, __VA_ARGS__)
+
+static be::void_::Game* g_game = nullptr;
+static bool g_running = false;
+static bool g_hasWindow = false;
+static ANativeWindow* g_window = nullptr;
+
+static void handleCmd(android_app* app, int32_t cmd) {
+    switch (cmd) {
+        case APP_CMD_INIT_WINDOW:
+            g_window = app->window;
+            g_hasWindow = true;
+            ALOGI("Window initialized");
+            break;
+        case APP_CMD_TERM_WINDOW:
+            if (g_game) {
+                auto* api = g_game->getApi();
+                if (api) {
+                    EGLDisplay dpy = reinterpret_cast<EGLDisplay>(api->getEGLDisplay());
+                    EGLSurface surf = reinterpret_cast<EGLSurface>(api->getEGLSurface());
+                    if (dpy && surf) {
+                        eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+                        eglDestroySurface(dpy, surf);
+                        api->setEGLSurface(nullptr);
+                    }
+                }
+            }
+            g_window = nullptr;
+            g_hasWindow = false;
+            ALOGI("Window terminated");
+            break;
+        case APP_CMD_GAINED_FOCUS:
+            break;
+        case APP_CMD_LOST_FOCUS:
+            break;
+        case APP_CMD_DESTROY:
+            g_running = false;
+            break;
+    }
+}
+
+static int32_t handleInput(android_app* /*app*/, AInputEvent* event) {
+    if (AInputEvent_getType(event) == AINPUT_EVENT_TYPE_KEY) {
+        if (AKeyEvent_getKeyCode(event) == AKEYCODE_BACK) {
+            g_running = false;
+            return 1;
+        }
+    }
+    return 0;
+}
 
 extern "C" void android_main(struct android_app* app) {
     be::void_::Game game;
+    g_game = &game;
+    g_running = true;
 
-    /* initOpenGL создаёт ApiRender с EGL */
-    if (!game.initOpenGL()) return;
-    if (!game.initShaders()) return;
-    if (!game.initGeometry()) return;
+    app->onAppCmd = handleCmd;
+    app->onInputEvent = handleInput;
 
-    /* ApiRender::android_main берёт управление */
-    /* Game::render() вызывается через callback */
-    /* TODO: нужно передать game в ApiRender для render callback */
+    /* Init OpenGL (EGL) via ApiRender */
+    if (!game.doInitOpenGL()) {
+        ALOGE("Failed to init OpenGL");
+        return;
+    }
+    if (!game.doInitShaders()) {
+        ALOGE("Failed to init shaders");
+        return;
+    }
+    if (!game.doInitGeometry()) {
+        ALOGE("Failed to init geometry");
+        return;
+    }
+
+    /* Set up render callback */
+    auto* api = game.getApi();
+    api->setRenderCallback([](void*) {
+        if (g_game) g_game->doRender();
+    }, nullptr);
+
+    /* Main loop */
+    while (g_running) {
+        int events;
+        struct android_poll_source* source;
+
+        while (ALooper_pollAll(g_hasWindow ? 0 : -1, nullptr,
+                                &events, (void**)&source) >= 0) {
+            if (source) source->process(app, source);
+        }
+
+        /* Create EGL surface если окно готово */
+        if (g_hasWindow && g_window) {
+            EGLDisplay dpy = reinterpret_cast<EGLDisplay>(api->getEGLDisplay());
+            EGLSurface surf = reinterpret_cast<EGLSurface>(api->getEGLSurface());
+            EGLConfig* cfg = reinterpret_cast<EGLConfig*>(api->getEGLConfig());
+            EGLContext ctx = reinterpret_cast<EGLContext>(api->getEGLContext());
+
+            if (surf == EGL_NO_SURFACE && dpy && cfg && ctx) {
+                surf = eglCreateWindowSurface(dpy, *cfg, g_window, nullptr);
+                if (surf == EGL_NO_SURFACE) {
+                    ALOGE("eglCreateWindowSurface failed: 0x%x", eglGetError());
+                } else {
+                    if (!eglMakeCurrent(dpy, surf, surf, ctx)) {
+                        ALOGE("eglMakeCurrent failed: 0x%x", eglGetError());
+                    } else {
+                        int32_t w = ANativeWindow_getWidth(g_window);
+                        int32_t h = ANativeWindow_getHeight(g_window);
+                        glViewport(0, 0, w, h);
+                        api->setEGLSurface(surf);
+                        ALOGI("EGL surface created: %dx%d", w, h);
+                    }
+                }
+            }
+
+            /* Render */
+            if (surf != EGL_NO_SURFACE) {
+                api->callRenderCallback();
+                eglSwapBuffers(dpy, surf);
+            }
+        }
+    }
+
+    game.doShutdown();
+    g_game = nullptr;
+    ALOGI("Android main exited");
 }
 #endif

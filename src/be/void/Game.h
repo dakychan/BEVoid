@@ -39,6 +39,9 @@ public:
     void doRender();
     void doShutdown();
 
+    /* Доступ к ApiRender для Android */
+    com::bevoid::aporia::system::ApiRender* getApi() { return m_api.get(); }
+
 private:
     bool   initOpenGL();
     bool   initShaders();

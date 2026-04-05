@@ -52,6 +52,19 @@ public:
     int32_t getWidth() const;
     int32_t getHeight() const;
 
+    /* Android: доступ к состоянию из Game.cpp android_main */
+#if defined(BEVOID_PLATFORM_ANDROID)
+    void* getAndroidActivity() const;
+    void* getAndroidWindow() const;
+    void* getEGLDisplay() const;
+    void* getEGLSurface() const;
+    void* getEGLContext() const;
+    void* getEGLConfig() const;
+    void  setEGLSurface(void* surface);
+    void  onAndroidWindowCreated();
+    void  onAndroidWindowDestroyed();
+#endif
+
     /* Callback для рендера */
     void setRenderCallback(void (*callback)(void* userData), void* userData) {
         m_renderCallback = callback;
