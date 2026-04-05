@@ -262,6 +262,9 @@ static void mat4LookAt(float ex,float ey,float ez, float cx,float cy,float cz, f
 }
 
 void Render::draw(float time, const movement::Vec3& camPos, float yaw, float pitch) {
+    glClearColor(0.08f, 0.08f, 0.12f, 1.0f); /* тёмно-серый фон */
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
     glUseProgram(m_program);
     glUniform1f(m_uTime, time);
 

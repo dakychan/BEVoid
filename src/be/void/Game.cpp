@@ -142,6 +142,8 @@ void Game::shutdown() {
 
 void Game::mainLoop() {
 #if !defined(BEVOID_PLATFORM_ANDROID)
+    std::cerr << "[Game] mainLoop() STARTED\n";
+
     auto lastTick = std::chrono::steady_clock::now();
 
     while (m_running && !m_api->shouldClose()) {
@@ -158,6 +160,8 @@ void Game::mainLoop() {
 
         m_api->swapBuffers();
     }
+
+    std::cerr << "[Game] mainLoop() EXIT\n";
 #else
     /* Android: главный цикл в android_main */
 #endif
