@@ -23,6 +23,10 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 #include <glad/glad.h>
+#else
+/* Android: OpenGL ES 3 напрямую */
+#include <GLES3/gl3.h>
+#include <GLES3/gl3ext.h>
 #endif
 
 #include <iostream>

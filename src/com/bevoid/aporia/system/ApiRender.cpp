@@ -124,7 +124,10 @@ int32_t ApiRender::getHeight() const {
 #include <GLES3/gl3.h>
 #include <GLES3/gl3ext.h>
 #include <android/native_activity.h>
+#include <android/native_app_glue.h>
 #include <android/log.h>
+#include <android/input.h>
+#include <android/looper.h>
 
 #define LOG_TAG "ApiRender"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -137,9 +140,8 @@ static ApiRender* g_apiRender = nullptr;
 
 struct ApiRender::AndroidState {
     ANativeActivity* activity = nullptr;
+    android_app*     app      = nullptr;
     ANativeWindow*   window   = nullptr;
-    AInputQueue*     inputQueue = nullptr;
-    ALooper*         looper   = nullptr;
     EGLDisplay       eglDisplay = EGL_NO_DISPLAY;
     EGLSurface       eglSurface = EGL_NO_SURFACE;
     EGLContext       eglContext = EGL_NO_CONTEXT;
@@ -147,6 +149,8 @@ struct ApiRender::AndroidState {
     int32_t          width = 0;
     int32_t          height = 0;
     bool             running = false;
+    bool             hasFocus = false;
+    bool             hasWindow = false;
 };
 
 ApiRender::ApiRender() : m_androidState(std::make_unique<AndroidState>()) {
@@ -159,36 +163,40 @@ static void handleCmd(android_app* app, int32_t cmd) {
     auto* state = g_apiRender->m_androidState.get();
     switch (cmd) {
         case APP_CMD_INIT_WINDOW:
-            if (state->activity->window != nullptr) {
-                state->window = state->activity->window;
+            state->window = app->window;
+            if (state->window) {
                 state->width  = ANativeWindow_getWidth(state->window);
                 state->height = ANativeWindow_getHeight(state->window);
+                state->hasWindow = true;
                 LOGI("Window initialized: %dx%d", state->width, state->height);
             }
             break;
         case APP_CMD_TERM_WINDOW:
             if (state->eglSurface != EGL_NO_SURFACE) {
-                eglMakeCurrent(state->eglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+                eglMakeCurrent(state->eglDisplay, EGL_NO_SURFACE,
+                               EGL_NO_SURFACE, EGL_NO_CONTEXT);
                 eglDestroySurface(state->eglDisplay, state->eglSurface);
                 state->eglSurface = EGL_NO_SURFACE;
             }
             state->window = nullptr;
+            state->hasWindow = false;
             LOGI("Window terminated");
             break;
         case APP_CMD_GAINED_FOCUS:
+            state->hasFocus = true;
             break;
         case APP_CMD_LOST_FOCUS:
+            state->hasFocus = false;
             break;
     }
 }
 
-static int32_t handleInput(android_app* app, AInputEvent* event) {
+static int32_t handleInput(android_app* /*app*/, AInputEvent* event) {
     int32_t type = AInputEvent_getType(event);
     if (type == AINPUT_EVENT_TYPE_KEY) {
         int32_t keyCode = AKeyEvent_getKeyCode(event);
         if (keyCode == AKEYCODE_BACK) {
-            auto* state = g_apiRender->m_androidState.get();
-            state->running = false;
+            g_apiRender->m_androidState->running = false;
             return 1;
         }
     }
@@ -200,9 +208,7 @@ bool ApiRender::create(const char* /*title*/, int /*width*/, int /*height*/) {
     LOGI("ApiRender::create — Android EGL + GLES3");
 
     auto* state = m_androidState.get();
-    android_app* app = reinterpret_cast<android_app*>(
-        android_app_create(0, 0));
-    /* На самом деле app передаётся через android_main — см. Game.cpp */
+    /* android_app будет получен из android_main */
 
     /* EGL Display */
     state->eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
@@ -231,7 +237,8 @@ bool ApiRender::create(const char* /*title*/, int /*width*/, int /*height*/) {
     };
 
     EGLint numConfigs;
-    if (!eglChooseConfig(state->eglDisplay, configAttrs, &state->eglConfig, 1, &numConfigs)) {
+    if (!eglChooseConfig(state->eglDisplay, configAttrs,
+                          &state->eglConfig, 1, &numConfigs)) {
         LOGE("eglChooseConfig failed: 0x%x", eglGetError());
         return false;
     }
@@ -256,7 +263,8 @@ bool ApiRender::create(const char* /*title*/, int /*width*/, int /*height*/) {
 void ApiRender::shutdown() {
     auto* state = m_androidState.get();
     if (state->eglDisplay != EGL_NO_DISPLAY) {
-        eglMakeCurrent(state->eglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        eglMakeCurrent(state->eglDisplay, EGL_NO_SURFACE,
+                       EGL_NO_SURFACE, EGL_NO_CONTEXT);
         if (state->eglSurface != EGL_NO_SURFACE)
             eglDestroySurface(state->eglDisplay, state->eglSurface);
         if (state->eglContext != EGL_NO_CONTEXT)
@@ -273,78 +281,71 @@ bool ApiRender::shouldClose() const {
 
 void ApiRender::swapBuffers() {
     auto* state = m_androidState.get();
-    if (state->eglDisplay != EGL_NO_DISPLAY && state->eglSurface != EGL_NO_SURFACE) {
+    if (state->eglDisplay != EGL_NO_DISPLAY &&
+        state->eglSurface != EGL_NO_SURFACE) {
         eglSwapBuffers(state->eglDisplay, state->eglSurface);
     }
 }
 
 void ApiRender::pollEvents() {
-    /* На Android события обрабатываются в Game.cpp через android_app */
+    /* На Android события обрабатываются в android_main */
 }
 
 int32_t ApiRender::getWidth() const {
-    auto* state = m_androidState.get();
-    if (state->window) return ANativeWindow_getWidth(state->window);
-    return state->width;
+    return m_androidState->width;
 }
 
 int32_t ApiRender::getHeight() const {
-    auto* state = m_androidState.get();
-    if (state->window) return ANativeWindow_getHeight(state->window);
-    return state->height;
+    return m_androidState->height;
 }
 
 /* Android entry point — вызывается из native_app_glue */
 void android_main(struct android_app* app) {
     auto* state = g_apiRender->m_androidState.get();
     state->activity = app->activity;
+    state->app = app;
     state->running = true;
 
     app->onAppCmd = handleCmd;
     app->onInputEvent = handleInput;
 
-    /* Ждём пока окно появится */
+    /* Главный цикл */
     while (state->running) {
         int events;
         struct android_poll_source* source;
 
-        while (ALooper_pollAll(0, nullptr, &events, (void**)&source) >= 0) {
+        /* 0 = не блокировать при рендеринге */
+        while (ALooper_pollAll(state->hasWindow ? 0 : -1, nullptr,
+                                &events, (void**)&source) >= 0) {
             if (source) source->process(app, source);
         }
 
-        if (state->window && state->eglDisplay != EGL_NO_DISPLAY) {
-            /* Создаём surface если ещё нет */
+        /* Создаём surface если окно появилось */
+        if (state->hasWindow && state->window &&
+            state->eglSurface == EGL_NO_SURFACE) {
+            state->eglSurface = eglCreateWindowSurface(
+                state->eglDisplay, state->eglConfig, state->window, nullptr);
             if (state->eglSurface == EGL_NO_SURFACE) {
-                state->eglSurface = eglCreateWindowSurface(
-                    state->eglDisplay, state->eglConfig, state->window, nullptr);
-                if (state->eglSurface == EGL_NO_SURFACE) {
-                    LOGE("eglCreateWindowSurface failed: 0x%x", eglGetError());
-                    continue;
-                }
-
+                LOGE("eglCreateWindowSurface failed: 0x%x", eglGetError());
+            } else {
                 if (!eglMakeCurrent(state->eglDisplay, state->eglSurface,
                                     state->eglSurface, state->eglContext)) {
                     LOGE("eglMakeCurrent failed: 0x%x", eglGetError());
-                    continue;
+                } else {
+                    state->width  = ANativeWindow_getWidth(state->window);
+                    state->height = ANativeWindow_getHeight(state->window);
+                    glViewport(0, 0, state->width, state->height);
+                    LOGI("EGL surface created: %dx%d",
+                         state->width, state->height);
                 }
-
-                state->width  = ANativeWindow_getWidth(state->window);
-                state->height = ANativeWindow_getHeight(state->window);
-                glViewport(0, 0, state->width, state->height);
-                LOGI("EGL surface created: %dx%d", state->width, state->height);
             }
+        }
 
-            /* Рендер callback */
+        /* Рендер */
+        if (state->eglSurface != EGL_NO_SURFACE && state->hasFocus) {
             g_apiRender->callRenderCallback();
-
-            /* Swap */
             eglSwapBuffers(state->eglDisplay, state->eglSurface);
         }
-    }
-
-    /* Cleanup */
-    if (app->window == state->window) {
-        /* Window уже уничтожен */
     }
 }
 

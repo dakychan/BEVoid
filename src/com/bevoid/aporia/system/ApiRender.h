@@ -61,17 +61,19 @@ public:
         if (m_renderCallback) m_renderCallback(m_renderUserData);
     }
 
+    /* Android: доступ к состоянию из static callbacks */
+    struct AndroidState;
+    std::unique_ptr<AndroidState> m_androidState;
+
 private:
     OsManager m_osManager;
 
 #if !defined(BEVOID_PLATFORM_ANDROID)
     GLFWwindow* m_window = nullptr;
+#endif
+
     void (*m_renderCallback)(void* userData) = nullptr;
     void*     m_renderUserData             = nullptr;
-#else
-    struct AndroidState;
-    std::unique_ptr<AndroidState> m_androidState;
-#endif
 };
 
 } // namespace com::bevoid::aporia::system

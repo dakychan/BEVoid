@@ -72,6 +72,7 @@ if(ANDROID)
     add_library(bevoid SHARED
         ${SOURCES_GAME} ${HEADERS_GAME}
         ${SOURCES_SYSTEM} ${HEADERS_SYSTEM}
+        ${CMAKE_ANDROID_NDK}/sources/android/native_app_glue/android_native_app_glue.c
     )
 
     target_link_libraries(bevoid PRIVATE
