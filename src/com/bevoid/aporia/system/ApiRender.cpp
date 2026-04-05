@@ -321,13 +321,6 @@ void* ApiRender::getEGLConfig() const {
 void ApiRender::setEGLSurface(void* surface) {
     m_androidState->eglSurface = reinterpret_cast<EGLSurface>(surface);
 }
-void ApiRender::onAndroidWindowCreated() {
-    /* Will be called from android_main when window is ready */
-}
-void ApiRender::onAndroidWindowDestroyed() {
-    m_androidState->window = nullptr;
-    m_androidState->hasWindow = false;
-}
 #endif
 
 } // namespace com::bevoid::aporia::system
