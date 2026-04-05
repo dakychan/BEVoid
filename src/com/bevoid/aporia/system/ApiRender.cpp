@@ -255,7 +255,18 @@ bool ApiRender::create(const char* /*title*/, int /*width*/, int /*height*/) {
         LOGE("eglCreateContext failed: 0x%x", eglGetError());
         return false;
     }
-    LOGI("EGL context created");
+
+    /* --- Временный pbuffer — чтобы контекст стал активным --- */
+    /* Без eglMakeCurrent GL вызовы (шейдеры, VAO) молча падают */
+    const EGLint pbufAttrs[] = { EGL_WIDTH, 1, EGL_HEIGHT, 1, EGL_NONE };
+    EGLSurface pbuf = eglCreatePbufferSurface(state->eglDisplay, state->eglConfig, pbufAttrs);
+    if (pbuf != EGL_NO_SURFACE) {
+        if (!eglMakeCurrent(state->eglDisplay, pbuf, pbuf, state->eglContext)) {
+            LOGE("eglMakeCurrent(pbuffer) failed: 0x%x", eglGetError());
+        } else {
+            LOGI("EGL context made current via pbuffer — GL ready");
+        }
+    }
 
     return true;
 }
