@@ -50,7 +50,7 @@ void Core::shutdown() {
 
 void Core::update(float deltaTime) {
     auto camPos = m_movement.getCameraPos();
-    float terrainH = m_render.getChunkManager().getTerrainHeight(camPos.x, camPos.z);
+    float terrainH = m_render.getChunkManager().terrainHeight(camPos.x, camPos.z);
 
     m_movement.update(deltaTime, m_physics, terrainH);
     m_network.update(deltaTime);

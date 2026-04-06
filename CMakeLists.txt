@@ -12,11 +12,10 @@ set(SOURCES_GAME
     src/be/void/Game.cpp
     src/be/void/core/Core.cpp
     src/be/void/core/render/Render.cpp
-    src/be/void/core/render/world/chunk/Chunk.cpp
-    src/be/void/core/render/world/chunk/ChunkManager.cpp
-    src/be/void/core/render/world/chunk/Noise.cpp
-    src/be/void/core/render/world/biome/Biome.cpp
-    src/be/void/core/render/world/biome/BiomeNoise.cpp
+    src/be/void/core/render/world/Noise.cpp
+    src/be/void/core/render/world/Biome.cpp
+    src/be/void/core/render/world/Chunk.cpp
+    src/be/void/core/render/world/ChunkManager.cpp
     src/be/void/core/movement/Movement.cpp
     src/be/void/core/input/Input.cpp
     src/be/void/network/Network.cpp
@@ -29,11 +28,12 @@ set(HEADERS_GAME
     src/be/void/Vec3.h
     src/be/void/core/Core.h
     src/be/void/core/render/Render.h
-    src/be/void/core/render/world/chunk/Chunk.h
-    src/be/void/core/render/world/chunk/ChunkManager.h
-    src/be/void/core/render/world/chunk/Noise.h
-    src/be/void/core/render/world/biome/Biome.h
-    src/be/void/core/render/world/biome/BiomeNoise.h
+    src/be/void/core/render/world/Constants.h
+    src/be/void/core/render/world/Noise.h
+    src/be/void/core/render/world/BiomeTypes.h
+    src/be/void/core/render/world/Biome.h
+    src/be/void/core/render/world/Chunk.h
+    src/be/void/core/render/world/ChunkManager.h
     src/be/void/physics/metrics/Units.h
     src/be/void/core/movement/Movement.h
     src/be/void/core/input/Input.h

@@ -12,7 +12,7 @@
 #define BEVOID_RENDER_H
 
 #include "core/movement/Movement.h"
-#include "core/render/world/chunk/ChunkManager.h"
+#include "core/render/world/ChunkManager.h"
 #include "physics/Cycles.h"
 #include "Vec3.h"
 #include <cstdint>
@@ -45,7 +45,7 @@ public:
     void draw(float time, const Vec3& camPos, float yaw, float pitch, int winWidth, int winHeight);
     void updateChunks(float playerX, float playerZ, float dt);
 
-    world::chunk::ChunkManager& getChunkManager() { return m_chunkManager; }
+    world::ChunkManager& getChunkManager() { return m_chunkManager; }
 
     void drawCrosshair();
     void drawHand();
@@ -64,7 +64,7 @@ private:
     GLint  m_uSkyColor = -1;
     GLint  m_uAmbient  = -1;
 
-    world::chunk::ChunkManager m_chunkManager;
+    world::ChunkManager m_chunkManager;
     physics::Cycles     m_cycles;
 
     SimpleShader m_crosshairShader;
