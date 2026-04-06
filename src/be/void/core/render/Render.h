@@ -37,7 +37,6 @@ public:
     void shutdown();
 
     void draw(float time, const Vec3& camPos, float yaw, float pitch, int winWidth, int winHeight);
-    void drawSky(float time, float yaw, float pitch, int winWidth, int winHeight);
     void updateChunks(float playerX, float playerZ, float dt);
 
     world::ChunkManager& getChunkManager() { return m_chunkManager; }

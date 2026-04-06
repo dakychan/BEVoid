@@ -263,33 +263,41 @@ void Render::updateChunks(float playerX, float playerZ, float dt) {
     m_cycles.update(dt);
 }
 
-void Render::drawSky(float time, float yaw, float pitch, int winWidth, int winHeight) {
+void Render::draw(float time, const Vec3& camPos, float yaw, float pitch, int winWidth, int winHeight) {
     auto& st = m_cycles.getState();
-    m_sky.setSkyColors(st.skyR, st.skyG, st.skyB, st.fogR, st.fogG, st.fogB);
-    m_sky.setSunColor(st.sunColorR, st.sunColorG, st.sunColorB);
 
     float dirX = -std::cos(pitch) * std::sin(yaw);
     float dirY = std::sin(pitch);
     float dirZ = -std::cos(pitch) * std::cos(yaw);
     float viewMat[16];
-    mat4LookAt(0, 0, 0, dirX, dirY, dirZ, viewMat); // центр в 0
+    mat4LookAt(camPos.x, camPos.y, camPos.z,
+               camPos.x + dirX, camPos.y + dirY, camPos.z + dirZ,
+               viewMat);
 
     float aspect = winWidth > 0 && winHeight > 0 ? (float)winWidth / (float)winHeight : 1.777f;
     float projMat[16];
     mat4Perspective(70.0f * 3.14159f / 180.0f, aspect, 0.01f, 1000.0f, projMat);
 
-    float sunEl = st.sunY; // elevation от sun direction
-    m_sky.draw(time, viewMat, projMat, sunEl);
-}
+    // 1. Sky dome
+    m_sky.setSkyColors(st.skyR, st.skyG, st.skyB, st.fogR, st.fogG, st.fogB);
+    m_sky.setSunColor(st.sunColorR, st.sunColorG, st.sunColorB);
 
-void Render::draw(float time, const Vec3& camPos, float yaw, float pitch, int winWidth, int winHeight) {
-    auto& st = m_cycles.getState();
+    // Sky view matrix — rotation only, no position
+    // Fix: clamp pitch to avoid gimbal lock
+    float safePitch = pitch;
+    if (safePitch > 1.56f) safePitch = 1.56f;   // ~89.4°
+    if (safePitch < -1.56f) safePitch = -1.56f;  // ~-89.4°
+    float sDirX = -std::cos(safePitch) * std::sin(yaw);
+    float sDirY = std::sin(safePitch);
+    float sDirZ = -std::cos(safePitch) * std::cos(yaw);
+    float skyView[16];
+    mat4LookAt(0, 0, 0, sDirX, sDirY, sDirZ, skyView);
 
-    // 1. Sky dome (без очистки глубины — sky на фоне)
-    drawSky(time, yaw, pitch, winWidth, winHeight);
+    m_sky.draw(time, skyView, projMat, st.sunY);
 
     // 2. Terrain
-    glClear(GL_DEPTH_BUFFER_BIT);
+    glClearColor(st.skyR, st.skyG, st.skyB, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
@@ -302,18 +310,7 @@ void Render::draw(float time, const Vec3& camPos, float yaw, float pitch, int wi
     glUniform3f(m_uSkyColor, st.fogR, st.fogG, st.fogB);
     glUniform1f(m_uAmbient, st.ambientIntensity);
 
-    float dirX = -std::cos(pitch) * std::sin(yaw);
-    float dirY = std::sin(pitch);
-    float dirZ = -std::cos(pitch) * std::cos(yaw);
-    float viewMat[16];
-    mat4LookAt(camPos.x, camPos.y, camPos.z,
-               camPos.x + dirX, camPos.y + dirY, camPos.z + dirZ,
-               viewMat);
     glUniformMatrix4fv(m_uView, 1, GL_FALSE, viewMat);
-
-    float aspect = winWidth > 0 && winHeight > 0 ? (float)winWidth / (float)winHeight : 1.777f;
-    float projMat[16];
-    mat4Perspective(70.0f * 3.14159f / 180.0f, aspect, 0.01f, 1000.0f, projMat);
     glUniformMatrix4fv(m_uProj, 1, GL_FALSE, projMat);
 
     m_chunkManager.draw();
