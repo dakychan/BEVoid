@@ -26,38 +26,103 @@
     #define LOG_TAG "BEVoid"
     #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
     #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
-    // Adreno требует #version 300 es ПЕРВОЙ строкой, без пустых строк перед ней
-    #define GLSL_VERSION "#version 300 es"
-    #define PRECISION "\nprecision mediump float;"
 #else
     #include <glad/glad.h>
     #define LOGI(...) std::printf(__VA_ARGS__)
     #define LOGE(...) std::fprintf(stderr, __VA_ARGS__)
-    #define GLSL_VERSION "#version 330 core\n"
-    #define PRECISION ""
 #endif
 
 namespace be::void_::core::render {
+
+/* ============================================================
+ * ШЕЙДЕРЫ — Android (GLES 3.0)
+ * ============================================================ */
+#if defined(BEVOID_PLATFORM_ANDROID)
+static const char* A_VERT =
+"#version 300 es\n"
+"layout(location = 0) in vec3 aPos;\n"
+"layout(location = 1) in vec3 aNormal;\n"
+"layout(location = 2) in vec3 aColor;\n"
+"out vec3 FragPos;\n"
+"out vec3 Normal;\n"
+"out vec3 Color;\n"
+"out float Height;\n"
+"uniform mat4 uView;\n"
+"uniform mat4 uProj;\n"
+"void main() {\n"
+"    FragPos = aPos; Normal = aNormal; Color = aColor; Height = aPos.y;\n"
+"    gl_Position = uProj * uView * vec4(aPos, 1.0);\n"
+"}\n";
+
+static const char* A_FRAG =
+"#version 300 es\n"
+"precision mediump float;\n"
+"in vec3 FragPos;\n"
+"in vec3 Normal;\n"
+"in vec3 Color;\n"
+"in float Height;\n"
+"out vec4 fragColor;\n"
+"uniform vec3 uSunDir;\n"
+"uniform vec3 uSunColor;\n"
+"uniform vec3 uSkyColor;\n"
+"uniform float uAmbient;\n"
+"void main() {\n"
+"    vec3 norm = normalize(Normal);\n"
+"    float diff = max(dot(norm, uSunDir), 0.0);\n"
+"    vec3 lighting = uAmbient * uSkyColor + diff * uSunColor;\n"
+"    vec3 result = Color * lighting;\n"
+"    float fog = clamp((Height - 50.0) / 150.0, 0.0, 1.0);\n"
+"    result = mix(result, uSkyColor, fog * 0.3);\n"
+"    fragColor = vec4(result, 1.0);\n"
+"}\n";
+
+/* ============================================================
+ * ШЕЙДЕРЫ — Desktop (GL 3.3 core)
+ * ============================================================ */
+#else
+static const char* D_VERT =
+"#version 330 core\n"
+"layout(location = 0) in vec3 aPos;\n"
+"layout(location = 1) in vec3 aNormal;\n"
+"layout(location = 2) in vec3 aColor;\n"
+"out vec3 FragPos;\n"
+"out vec3 Normal;\n"
+"out vec3 Color;\n"
+"out float Height;\n"
+"uniform mat4 uView;\n"
+"uniform mat4 uProj;\n"
+"void main() {\n"
+"    FragPos = aPos; Normal = aNormal; Color = aColor; Height = aPos.y;\n"
+"    gl_Position = uProj * uView * vec4(aPos, 1.0);\n"
+"}\n";
+
+static const char* D_FRAG =
+"#version 330 core\n"
+"in vec3 FragPos;\n"
+"in vec3 Normal;\n"
+"in vec3 Color;\n"
+"in float Height;\n"
+"out vec4 fragColor;\n"
+"uniform vec3 uSunDir;\n"
+"uniform vec3 uSunColor;\n"
+"uniform vec3 uSkyColor;\n"
+"uniform float uAmbient;\n"
+"void main() {\n"
+"    vec3 norm = normalize(Normal);\n"
+"    float diff = max(dot(norm, uSunDir), 0.0);\n"
+"    vec3 lighting = uAmbient * uSkyColor + diff * uSunColor;\n"
+"    vec3 result = Color * lighting;\n"
+"    float fog = clamp((Height - 50.0) / 150.0, 0.0, 1.0);\n"
+"    result = mix(result, uSkyColor, fog * 0.3);\n"
+"    fragColor = vec4(result, 1.0);\n"
+"}\n";
+#endif
 
 static std::string loadShaderFile(const std::string& path) {
     std::ifstream f(path);
     if (!f.is_open()) return "";
     return std::string((std::istreambuf_iterator<char>(f)),
                         std::istreambuf_iterator<char>());
-}
-
-static std::string adaptShaderForPlatform(const std::string& src, bool isFragShader) {
-    std::string out = GLSL_VERSION;
-#if defined(BEVOID_PLATFORM_ANDROID)
-    // precision только во фрагментном шейдере
-    if (isFragShader) {
-        out += "\nprecision mediump float;";
-    }
-#else
-    (void)isFragShader;
-#endif
-    out += src;
-    return out;
 }
 
 /* ============================================================
@@ -123,83 +188,26 @@ Render::Render() = default;
 Render::~Render() = default;
 
 bool Render::initShaders() {
-    std::string vsSrc, fsSrc;
-
 #if defined(BEVOID_PLATFORM_ANDROID)
-    // Android — шейдеры встроены, файловая система недоступна
-    vsSrc = adaptShaderForPlatform(R"(
-layout(location = 0) in vec3 aPos;
-layout(location = 1) in vec3 aNormal;
-layout(location = 2) in vec3 aColor;
-out vec3 FragPos;
-out vec3 Normal;
-out vec3 Color;
-out float Height;
-uniform mat4 uView;
-uniform mat4 uProj;
-void main() {
-    FragPos = aPos; Normal = aNormal; Color = aColor; Height = aPos.y;
-    gl_Position = uProj * uView * vec4(aPos, 1.0);
-}
-)", false);
-    fsSrc = adaptShaderForPlatform(R"(
-in vec3 FragPos; in vec3 Normal; in vec3 Color; in float Height;
-out vec4 fragColor;
-uniform vec3 uSunDir; uniform vec3 uSunColor; uniform vec3 uSkyColor; uniform float uAmbient;
-void main() {
-    vec3 norm = normalize(Normal);
-    float diff = max(dot(norm, uSunDir), 0.0);
-    vec3 lighting = uAmbient * uSkyColor + diff * uSunColor;
-    vec3 result = Color * lighting;
-    float fog = clamp((Height - 50.0) / 150.0, 0.0, 1.0);
-    result = mix(result, uSkyColor, fog * 0.3);
-    fragColor = vec4(result, 1.0);
-}
-)", true);
+    const char* vs = A_VERT;
+    const char* fs = A_FRAG;
 #else
-    // Desktop — пробуем файлы, иначе fallback
-    vsSrc = loadShaderFile("shaders/terrain.vert");
-    fsSrc = loadShaderFile("shaders/terrain.frag");
-
+    std::string vsSrc = loadShaderFile("shaders/terrain.vert");
+    std::string fsSrc = loadShaderFile("shaders/terrain.frag");
+    std::string vsStr, fsStr;
+    const char* vs;
+    const char* fs;
     if (vsSrc.empty() || fsSrc.empty()) {
         LOGE("[Render] Shader files not found, using fallback\n");
-        vsSrc = R"(
-layout(location = 0) in vec3 aPos;
-layout(location = 1) in vec3 aNormal;
-layout(location = 2) in vec3 aColor;
-out vec3 FragPos;
-out vec3 Normal;
-out vec3 Color;
-out float Height;
-uniform mat4 uView;
-uniform mat4 uProj;
-void main() {
-    FragPos = aPos; Normal = aNormal; Color = aColor; Height = aPos.y;
-    gl_Position = uProj * uView * vec4(aPos, 1.0);
-}
-)";
-        fsSrc = R"(
-in vec3 FragPos; in vec3 Normal; in vec3 Color; in float Height;
-out vec4 fragColor;
-uniform vec3 uSunDir; uniform vec3 uSunColor; uniform vec3 uSkyColor; uniform float uAmbient;
-void main() {
-    vec3 norm = normalize(Normal);
-    float diff = max(dot(norm, uSunDir), 0.0);
-    vec3 lighting = uAmbient * uSkyColor + diff * uSunColor;
-    vec3 result = Color * lighting;
-    float fog = clamp((Height - 50.0) / 150.0, 0.0, 1.0);
-    result = mix(result, uSkyColor, fog * 0.3);
-    fragColor = vec4(result, 1.0);
-}
-)";
+        vs = D_VERT;
+        fs = D_FRAG;
     } else {
-        vsSrc = adaptShaderForPlatform(vsSrc, false);
-        fsSrc = adaptShaderForPlatform(fsSrc, true);
+        vsStr = vsSrc; fsStr = fsSrc;
+        vs = vsStr.c_str();
+        fs = fsStr.c_str();
     }
 #endif
 
-    const char* vs = vsSrc.c_str();
-    const char* fs = fsSrc.c_str();
     GLuint vsSh = compileShader(GL_VERTEX_SHADER, vs);
     GLuint fsSh = compileShader(GL_FRAGMENT_SHADER, fs);
     if (!vsSh || !fsSh) return false;
