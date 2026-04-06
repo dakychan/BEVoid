@@ -13,6 +13,7 @@
 
 #include "core/movement/Movement.h"
 #include "core/render/world/ChunkManager.h"
+#include "core/render/SkyRenderer.h"
 #include "physics/Cycles.h"
 #include "Vec3.h"
 #include <cstdint>
@@ -31,10 +32,12 @@ public:
     ~Render();
 
     bool initShaders();
+    bool initSky();
     bool initChunks();
     void shutdown();
 
     void draw(float time, const Vec3& camPos, float yaw, float pitch, int winWidth, int winHeight);
+    void drawSky(float time, float yaw, float pitch, int winWidth, int winHeight);
     void updateChunks(float playerX, float playerZ, float dt);
 
     world::ChunkManager& getChunkManager() { return m_chunkManager; }
@@ -57,6 +60,7 @@ private:
     GLint  m_uAmbient  = -1;
 
     world::ChunkManager m_chunkManager;
+    SkyRenderer         m_sky;
     physics::Cycles     m_cycles;
 
     GLuint m_crossVao = 0, m_crossVbo = 0;

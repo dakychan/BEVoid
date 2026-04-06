@@ -12,6 +12,7 @@ set(SOURCES_GAME
     src/be/void/Game.cpp
     src/be/void/core/Core.cpp
     src/be/void/core/render/Render.cpp
+    src/be/void/core/render/SkyRenderer.cpp
     src/be/void/core/render/world/Noise.cpp
     src/be/void/core/render/world/Biome.cpp
     src/be/void/core/render/world/Chunk.cpp
@@ -28,6 +29,7 @@ set(HEADERS_GAME
     src/be/void/Vec3.h
     src/be/void/core/Core.h
     src/be/void/core/render/Render.h
+    src/be/void/core/render/SkyRenderer.h
     src/be/void/core/render/world/Constants.h
     src/be/void/core/render/world/Noise.h
     src/be/void/core/render/world/BiomeTypes.h

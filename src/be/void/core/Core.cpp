@@ -41,6 +41,10 @@ bool Core::init() {
         LOGE("[Core] Failed to init shaders\n");
         return false;
     }
+    if (!m_render.initSky()) {
+        LOGE("[Core] Failed to init sky\n");
+        return false;
+    }
     if (!m_render.initChunks()) {
         LOGE("[Core] Failed to init chunks\n");
         return false;

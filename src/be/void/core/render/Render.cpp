@@ -242,6 +242,13 @@ bool Render::initShaders() {
     return true;
 }
 
+bool Render::initSky() {
+    bool ok = m_sky.init();
+    if (ok) LOGI("[Render] Sky dome OK\n");
+    else LOGE("[Render] Sky dome failed\n");
+    return ok;
+}
+
 bool Render::initChunks() {
     return true; /* ChunkManager init внутри */
 }
@@ -256,12 +263,35 @@ void Render::updateChunks(float playerX, float playerZ, float dt) {
     m_cycles.update(dt);
 }
 
+void Render::drawSky(float time, float yaw, float pitch, int winWidth, int winHeight) {
+    auto& st = m_cycles.getState();
+    m_sky.setSkyColors(st.skyR, st.skyG, st.skyB, st.fogR, st.fogG, st.fogB);
+    m_sky.setSunColor(st.sunColorR, st.sunColorG, st.sunColorB);
+
+    float dirX = -std::cos(pitch) * std::sin(yaw);
+    float dirY = std::sin(pitch);
+    float dirZ = -std::cos(pitch) * std::cos(yaw);
+    float viewMat[16];
+    mat4LookAt(0, 0, 0, dirX, dirY, dirZ, viewMat); // центр в 0
+
+    float aspect = winWidth > 0 && winHeight > 0 ? (float)winWidth / (float)winHeight : 1.777f;
+    float projMat[16];
+    mat4Perspective(70.0f * 3.14159f / 180.0f, aspect, 0.01f, 1000.0f, projMat);
+
+    float sunEl = st.sunY; // elevation от sun direction
+    m_sky.draw(time, viewMat, projMat, sunEl);
+}
+
 void Render::draw(float time, const Vec3& camPos, float yaw, float pitch, int winWidth, int winHeight) {
     auto& st = m_cycles.getState();
-    glClearColor(st.skyR, st.skyG, st.skyB, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // 1. Sky dome (без очистки глубины — sky на фоне)
+    drawSky(time, yaw, pitch, winWidth, winHeight);
+
+    // 2. Terrain
+    glClear(GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
-    glEnable(GL_CULL_FACE);  // Включаем обратно
+    glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
 
     glUseProgram(m_program);
