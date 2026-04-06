@@ -111,9 +111,43 @@ Render::Render() = default;
 Render::~Render() = default;
 
 bool Render::initShaders() {
-    // Пробуем загрузить из файлов, иначе — fallback из кода
-    std::string vsSrc = loadShaderFile("shaders/terrain.vert");
-    std::string fsSrc = loadShaderFile("shaders/terrain.frag");
+    std::string vsSrc, fsSrc;
+
+#if defined(BEVOID_PLATFORM_ANDROID)
+    // Android — шейдеры встроены, файловая система недоступна
+    vsSrc = adaptShaderForPlatform(R"(
+layout(location = 0) in vec3 aPos;
+layout(location = 1) in vec3 aNormal;
+layout(location = 2) in vec3 aColor;
+out vec3 FragPos;
+out vec3 Normal;
+out vec3 Color;
+out float Height;
+uniform mat4 uView;
+uniform mat4 uProj;
+void main() {
+    FragPos = aPos; Normal = aNormal; Color = aColor; Height = aPos.y;
+    gl_Position = uProj * uView * vec4(aPos, 1.0);
+}
+)");
+    fsSrc = adaptShaderForPlatform(R"(
+in vec3 FragPos; in vec3 Normal; in vec3 Color; in float Height;
+out vec4 fragColor;
+uniform vec3 uSunDir; uniform vec3 uSunColor; uniform vec3 uSkyColor; uniform float uAmbient;
+void main() {
+    vec3 norm = normalize(Normal);
+    float diff = max(dot(norm, uSunDir), 0.0);
+    vec3 lighting = uAmbient * uSkyColor + diff * uSunColor;
+    vec3 result = Color * lighting;
+    float fog = clamp((Height - 50.0) / 150.0, 0.0, 1.0);
+    result = mix(result, uSkyColor, fog * 0.3);
+    fragColor = vec4(result, 1.0);
+}
+)");
+#else
+    // Desktop — пробуем файлы, иначе fallback
+    vsSrc = loadShaderFile("shaders/terrain.vert");
+    fsSrc = loadShaderFile("shaders/terrain.frag");
 
     if (vsSrc.empty() || fsSrc.empty()) {
         std::cerr << "[Render] Shader files not found, using fallback\n";
@@ -146,10 +180,11 @@ void main() {
     fragColor = vec4(result, 1.0);
 }
 )";
+    } else {
+        vsSrc = adaptShaderForPlatform(vsSrc);
+        fsSrc = adaptShaderForPlatform(fsSrc);
     }
-
-    vsSrc = adaptShaderForPlatform(vsSrc);
-    fsSrc = adaptShaderForPlatform(fsSrc);
+#endif
 
     const char* vs = vsSrc.c_str();
     const char* fs = fsSrc.c_str();
