@@ -7,10 +7,12 @@
 namespace be::void_::core::render::world {
 
 struct BiomeSample {
-    float height;       // 0..1
-    float temperature;  // 0..1
-    float humidity;     // 0..1
-    float wx, wz;       // мировые координаты
+    float height;       // 0..1 — рельеф
+    float continental;  // 0..1 — зона: океан/равнина/горы
+    float ridge;        // 0..1 — реки/обрывы
+    float temperature;  // 0..1 — большие климатические зоны
+    float humidity;     // 0..1 — влажность
+    float wx, wz;
     Biome type;
 };
 
@@ -20,9 +22,11 @@ public:
     BiomeSample sample(float wx, float wz) const;
 
 private:
-    Noise heightNoise;
-    Noise tempNoise;
-    Noise humidityNoise;
+    Noise continental;  // 0.001 — океан/равнина/горы
+    Noise heightLo;     // микротекстура
+    Noise ridge;        // 0.008 — реки/обрывы
+    Noise temperature;  // 0.002 — климат
+    Noise humidity;     // 0.002 — влажность
 };
 
 } // namespace

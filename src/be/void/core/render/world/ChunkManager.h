@@ -14,7 +14,7 @@ namespace be::void_::core::render::world {
 
 class ChunkManager {
 public:
-    explicit ChunkManager(uint32_t seed = 42);
+    explicit ChunkManager(uint32_t seed = 77777);
     ~ChunkManager();
 
     void update(float px, float pz, float dt);
@@ -45,7 +45,6 @@ private:
 
     uint32_t m_seed;
     int      m_rdist = 4;
-    Noise    m_noise;
     BiomeNoise m_biome;
 
     std::unordered_map<Key, std::unique_ptr<Chunk>, KeyHash> m_chunks;

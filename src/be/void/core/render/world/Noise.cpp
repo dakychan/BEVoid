@@ -58,4 +58,18 @@ float Noise::octave(float x, float y, int octaves) const {
     return sum / max;
 }
 
+float Noise::ridge(float x, float y, int octaves) const {
+    float sum = 0, amp = 1, freq = 1, max = 0;
+    for (int i = 0; i < octaves; ++i) {
+        float n = sample(x * freq, y * freq);
+        n = 1.0f - std::abs(n);  // ridge: |n| → [0, 1]
+        n *= n;                   // sharpen peaks
+        sum += n * amp;
+        max += amp;
+        amp *= PERSISTENCE;
+        freq *= LACUNARITY;
+    }
+    return sum / max;
+}
+
 } // namespace

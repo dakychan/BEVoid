@@ -25,14 +25,6 @@
 
 namespace be::void_::core::render {
 
-class SimpleShader {
-public:
-    GLuint program = 0;
-    bool compile(const char* vs, const char* fs);
-    void use() const;
-    ~SimpleShader();
-};
-
 class Render {
 public:
     Render();
@@ -66,10 +58,6 @@ private:
 
     world::ChunkManager m_chunkManager;
     physics::Cycles     m_cycles;
-
-    SimpleShader m_crosshairShader;
-    SimpleShader m_handShader;
-    bool m_shadersInit = false;
 
     GLuint m_crossVao = 0, m_crossVbo = 0;
     GLuint m_handVao = 0, m_handVbo = 0, m_handEbo = 0;

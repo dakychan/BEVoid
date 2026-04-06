@@ -4,8 +4,8 @@
 namespace be::void_::core::render::world {
 
 /* ---- Chunk ---- */
-constexpr int    CHUNK_SIZE   = 16;  // блоков
-constexpr int    CHUNK_GRID   = 17;  // вершин (CHUNK_SIZE + 1)
+constexpr int    CHUNK_SIZE   = 32;  // блоков (было 16 — плавнее цвета)
+constexpr int    CHUNK_GRID   = 33;  // вершин (CHUNK_SIZE + 1)
 constexpr int    RENDER_DIST  = 4;   // чанков
 
 /* ---- Terrain ---- */

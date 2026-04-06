@@ -16,6 +16,9 @@ public:
     // Фрактальный шум, [-1, 1]
     float octave(float x, float y, int octaves) const;
 
+    // Ridged noise (|n|), [0, 1] — для рек/обрывов
+    float ridge(float x, float y, int octaves) const;
+
 private:
     std::array<int, 512> perm{};
 

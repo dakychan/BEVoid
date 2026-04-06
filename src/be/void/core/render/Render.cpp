@@ -17,151 +17,36 @@
 
 #include "core/render/Render.h"
 #include <iostream>
+#include <fstream>
+#include <string>
+
+#if defined(BEVOID_PLATFORM_ANDROID)
+    #include <GLES3/gl3.h>
+    #define GLSL_VERSION "#version 300 es\n"
+    #define PRECISION "precision mediump float;\n"
+#else
+    #include <glad/glad.h>
+    #define GLSL_VERSION "#version 330 core\n"
+    #define PRECISION ""
+#endif
 
 namespace be::void_::core::render {
 
-SimpleShader::~SimpleShader() {
-    if (program) {
-        glDeleteProgram(program);
-        program = 0;
-    }
+static std::string loadShaderFile(const std::string& path) {
+    std::ifstream f(path);
+    if (!f.is_open()) return "";
+    return std::string((std::istreambuf_iterator<char>(f)),
+                        std::istreambuf_iterator<char>());
 }
 
-bool SimpleShader::compile(const char* vs, const char* fs) {
-    GLuint v = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(v, 1, &vs, nullptr);
-    glCompileShader(v);
-    GLuint f = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(f, 1, &fs, nullptr);
-    glCompileShader(f);
-    program = glCreateProgram();
-    glAttachShader(program, v);
-    glAttachShader(program, f);
-    glLinkProgram(program);
-    glDeleteShader(v);
-    glDeleteShader(f);
-    return true;
-}
-
-void SimpleShader::use() const {
-    glUseProgram(program);
-}
-
+static std::string adaptShaderForPlatform(const std::string& src) {
+    std::string out = GLSL_VERSION;
 #if defined(BEVOID_PLATFORM_ANDROID)
-static const char* VERT_SRC = R"(
-#version 300 es
-layout(location = 0) in vec3 aPos;
-layout(location = 1) in vec3 aNormal;
-layout(location = 2) in vec3 aColor;
-
-uniform mat4 uView;
-uniform mat4 uProj;
-uniform vec3 uCamPos;
-uniform vec3 uSunDir;
-
-out vec3 vColor;
-out vec3 vNormal;
-out vec3 vWorldPos;
-out float vFog;
-out float vSunDot;
-
-void main() {
-    vec4 worldPos = vec4(aPos, 1.0);
-    vWorldPos = aPos;
-    vColor = aColor;
-    vNormal = mat3(uView) * aNormal;
-    vFog = clamp(distance(aPos, uCamPos) / 120.0, 0.0, 1.0);
-    vSunDot = max(dot(normalize(aNormal), uSunDir), 0.0);
-    gl_Position = uProj * uView * worldPos;
-}
-)";
-
-static const char* FRAG_SRC = R"(
-#version 300 es
-precision mediump float;
-
-in vec3 vColor;
-in vec3 vNormal;
-in vec3 vWorldPos;
-in float vFog;
-in float vSunDot;
-
-uniform vec3 uSunColor;
-uniform vec3 uSkyColor;
-uniform float uAmbient;
-
-out vec4 fragColor;
-
-void main() {
-    float light = uAmbient + vSunDot * 0.65;
-    vec3 color = vColor * light * uSunColor;
-    color = mix(color, uSkyColor, vFog * vFog);
-    fragColor = vec4(color, 1.0);
-}
-)";
-#else
-static const char* VERT_SRC = R"(
-#version 330 core
-layout(location = 0) in vec3 aPos;
-layout(location = 1) in vec3 aNormal;
-layout(location = 2) in vec3 aColor;
-
-out vec3 FragPos;
-out vec3 Normal;
-out vec3 Color;
-out float Height;
-
-uniform mat4 uView;
-uniform mat4 uProj;
-
-void main() {
-    FragPos = aPos;
-    Normal = aNormal;
-    Color = aColor;
-    Height = aPos.y;
-    
-    gl_Position = uProj * uView * vec4(aPos, 1.0);
-}
-)";
-
-static const char* FRAG_SRC = R"(
-#version 330 core
-
-in vec3 FragPos;
-in vec3 Normal;
-in vec3 Color;
-in float Height;
-
-out vec4 fragColor;
-
-uniform vec3 uSunDir;
-uniform vec3 uSunColor;
-uniform vec3 uSkyColor;
-uniform float uAmbient;
-
-void main() {
-    // Нормализуем нормаль
-    vec3 norm = normalize(Normal);
-    
-    // Диффузное освещение от солнца
-    float diff = max(dot(norm, uSunDir), 0.0);
-    vec3 diffuse = diff * uSunColor;
-    
-    // Ambient освещение
-    vec3 ambient = uAmbient * uSkyColor;
-    
-    // Итоговый цвет = цвет биома * освещение
-    vec3 lighting = ambient + diffuse;
-    vec3 result = Color * lighting;
-    
-    // Туман по высоте (опционально)
-    float fogFactor = clamp((Height - 50.0) / 150.0, 0.0, 1.0);
-    result = mix(result, uSkyColor, fogFactor * 0.3);
-    
-    fragColor = vec4(result, 1.0);
-}
-)";
+    out += PRECISION;
 #endif
+    out += src;
+    return out;
+}
 
 /* ============================================================
  * Математика матриц (COLUMN-MAJOR для OpenGL)
@@ -226,13 +111,55 @@ Render::Render() = default;
 Render::~Render() = default;
 
 bool Render::initShaders() {
-    GLuint vs = compileShader(GL_VERTEX_SHADER, VERT_SRC);
-    GLuint fs = compileShader(GL_FRAGMENT_SHADER, FRAG_SRC);
-    if (!vs || !fs) return false;
+    // Пробуем загрузить из файлов, иначе — fallback из кода
+    std::string vsSrc = loadShaderFile("shaders/terrain.vert");
+    std::string fsSrc = loadShaderFile("shaders/terrain.frag");
+
+    if (vsSrc.empty() || fsSrc.empty()) {
+        std::cerr << "[Render] Shader files not found, using fallback\n";
+        vsSrc = R"(
+layout(location = 0) in vec3 aPos;
+layout(location = 1) in vec3 aNormal;
+layout(location = 2) in vec3 aColor;
+out vec3 FragPos;
+out vec3 Normal;
+out vec3 Color;
+out float Height;
+uniform mat4 uView;
+uniform mat4 uProj;
+void main() {
+    FragPos = aPos; Normal = aNormal; Color = aColor; Height = aPos.y;
+    gl_Position = uProj * uView * vec4(aPos, 1.0);
+}
+)";
+        fsSrc = R"(
+in vec3 FragPos; in vec3 Normal; in vec3 Color; in float Height;
+out vec4 fragColor;
+uniform vec3 uSunDir; uniform vec3 uSunColor; uniform vec3 uSkyColor; uniform float uAmbient;
+void main() {
+    vec3 norm = normalize(Normal);
+    float diff = max(dot(norm, uSunDir), 0.0);
+    vec3 lighting = uAmbient * uSkyColor + diff * uSunColor;
+    vec3 result = Color * lighting;
+    float fog = clamp((Height - 50.0) / 150.0, 0.0, 1.0);
+    result = mix(result, uSkyColor, fog * 0.3);
+    fragColor = vec4(result, 1.0);
+}
+)";
+    }
+
+    vsSrc = adaptShaderForPlatform(vsSrc);
+    fsSrc = adaptShaderForPlatform(fsSrc);
+
+    const char* vs = vsSrc.c_str();
+    const char* fs = fsSrc.c_str();
+    GLuint vsSh = compileShader(GL_VERTEX_SHADER, vs);
+    GLuint fsSh = compileShader(GL_FRAGMENT_SHADER, fs);
+    if (!vsSh || !fsSh) return false;
 
     m_program = glCreateProgram();
-    glAttachShader(m_program, vs);
-    glAttachShader(m_program, fs);
+    glAttachShader(m_program, vsSh);
+    glAttachShader(m_program, fsSh);
     glLinkProgram(m_program);
 
     GLint ok;
@@ -244,8 +171,8 @@ bool Render::initShaders() {
         return false;
     }
 
-    glDeleteShader(vs);
-    glDeleteShader(fs);
+    glDeleteShader(vsSh);
+    glDeleteShader(fsSh);
 
     m_uTime   = glGetUniformLocation(m_program, "uTime");
     m_uView   = glGetUniformLocation(m_program, "uView");

@@ -1,6 +1,8 @@
 #include "ChunkManager.h"
+#include "Biome.h"
 #include "BiomeTypes.h"
 #include "Constants.h"
+#include "Noise.h"
 #include <cmath>
 #include <algorithm>
 
@@ -9,44 +11,9 @@ namespace be::void_::core::render::world {
 /* ---- helpers ---- */
 static float lerp(float a, float b, float t) { return a + (b - a) * t; }
 
-static void computeNormal(int x, int z, int grid, const float h[],
-                          float& nx, float& ny, float& nz) {
-    auto H = [&](int xi, int zi) -> float {
-        if (xi < 0 || xi >= grid || zi < 0 || zi >= grid)
-            return h[z * grid + x]; // край чанка — не обрыв в 0
-        return h[zi * grid + xi];
-    };
-    float hL = H(x-1, z), hR = H(x+1, z);
-    float hD = H(x, z-1), hU = H(x, z+1);
-    nx = hL - hR;
-    ny = 2.0f;
-    nz = hD - hU;
-    float len = std::sqrt(nx*nx + ny*ny + nz*nz);
-    if (len > 1e-6f) { len = 1.0f / len; } else { nx=0; ny=1; nz=0; return; }
-    nx *= len; ny *= len; nz *= len;
-}
-
-static BiomeColor blendColor(const BiomeSample& s, const BiomeNoise& biome) {
-    BiomeColor c = biomeInfo(s.type).color;
-    // 4 соседа
-    const float off[4][2] = {{BLEND_RADIUS,0},{-BLEND_RADIUS,0},{0,BLEND_RADIUS},{0,-BLEND_RADIUS}};
-    float tr=c.r, tg=c.g, tb=c.b;
-    int cnt = 0;
-    for (auto& o : off) {
-        auto ns = biome.sample(s.wx + o[0], s.wz + o[1]);
-        if (ns.type != s.type) {
-            auto nc = biomeInfo(ns.type).color;
-            tr += nc.r; tg += nc.g; tb += nc.b;
-            ++cnt;
-        }
-    }
-    if (cnt > 0) { float w = 1.0f / (cnt+1); tr*=w; tg*=w; tb*=w; }
-    return {tr, tg, tb};
-}
-
 /* ---- ChunkManager ---- */
 ChunkManager::ChunkManager(uint32_t seed)
-    : m_seed(seed), m_noise(seed), m_biome(seed) {}
+    : m_seed(seed), m_biome(seed) {}
 
 ChunkManager::~ChunkManager() {}
 
@@ -99,26 +66,58 @@ void ChunkManager::update(float px, float pz, float dt) {
 }
 
 void ChunkManager::buildChunk(int cx, int cz) {
-    constexpr int G = CHUNK_GRID;
-    constexpr int B = CHUNK_SIZE;
-    float h[G*G]{};
-    ChunkMesh mesh;
-    mesh.verts.resize(G*G);
-    mesh.idx.reserve(B*B*6);
+    // Генерируем 19x19 вершин (16 + 1 блок с каждой стороны) для корректных нормалей
+    constexpr int PAD = 1;
+    constexpr int G = CHUNK_GRID + 2;  // 19
+    constexpr int B = CHUNK_SIZE;       // 16
 
+    // Собираем высоты с оверлапом
+    float h[G*G]{};
     for (int z=0; z<G; ++z)
     for (int x=0; x<G; ++x) {
-        int i = z*G + x;
-        float wx = cx*B + x, wz = cz*B + z;
+        float wx = (cx - PAD)*B + x;  // мировые координаты с паддингом
+        float wz = (cz - PAD)*B + z;
+        h[z*G + x] = m_biome.sample(wx, wz).height * MAX_HEIGHT;
+    }
+
+    // Строим вершины только для центральных 16x16 (индексы 1..17)
+    ChunkMesh mesh;
+    int VERT_G = CHUNK_GRID;  // 17 вершин на 16 блоков
+    mesh.verts.resize(VERT_G * VERT_G);
+    mesh.idx.reserve(B * B * 6);
+
+    for (int z = 0; z < VERT_G; ++z)
+    for (int x = 0; x < VERT_G; ++x) {
+        int i = z * VERT_G + x;
+
+        float wx = cx * B + x;
+        float wz = cz * B + z;
         auto bs = m_biome.sample(wx, wz);
         float hy = bs.height * MAX_HEIGHT;
-        h[i] = hy;
+
+        // Вершина (x,z) в padded массиве = (x+1, z+1)
+        int px = x + PAD;
+        int pz = z + PAD;
+
+        // Нормаль из padded-соседей
+        float hL = h[pz * G + (px - 1)];
+        float hR = h[pz * G + (px + 1)];
+        float hD = h[(pz - 1) * G + px];
+        float hU = h[(pz + 1) * G + px];
+        float nx = hL - hR;
+        float ny = 2.0f;
+        float nz = hD - hU;
+        float len = std::sqrt(nx*nx + ny*ny + nz*nz);
+        if (len > 1e-6f) { len = 1.0f / len; } else { nx=0; ny=1; nz=0; }
+        nx *= len; ny *= len; nz *= len;
+
+        static thread_local Noise colorVar(99999);
+        float cv = colorVar.sample(wx * 0.05f, wz * 0.05f);
+        BiomeColor col = biomeColor(bs.type, bs.height, bs.humidity, bs.ridge, cv);
 
         auto& v = mesh.verts[i];
         v.x = wx; v.y = hy; v.z = wz;
-        computeNormal(x, z, G, h, v.nx, v.ny, v.nz);
-
-        BiomeColor col = blendColor(bs, m_biome);
+        v.nx = nx; v.ny = ny; v.nz = nz;
         if (hy > SNOW_LINE) {
             float sf = std::min(1.0f, (hy - SNOW_LINE) / (MAX_HEIGHT - SNOW_LINE));
             v.r = lerp(col.r, 0.95f, sf);
@@ -129,9 +128,13 @@ void ChunkManager::buildChunk(int cx, int cz) {
         }
     }
 
-    for (int z=0; z<B; ++z)
-    for (int x=0; x<B; ++x) {
-        uint32_t a=z*G+x, b=a+1, c=(z+1)*G+x, d=c+1;
+    // Индексы
+    for (int z = 0; z < B; ++z)
+    for (int x = 0; x < B; ++x) {
+        uint32_t a = z*VERT_G + x;
+        uint32_t b = a + 1;
+        uint32_t c = (z+1)*VERT_G + x;
+        uint32_t d = c + 1;
         mesh.idx.push_back(c); mesh.idx.push_back(b); mesh.idx.push_back(a);
         mesh.idx.push_back(c); mesh.idx.push_back(d); mesh.idx.push_back(b);
     }
