@@ -26,8 +26,9 @@
     #define LOG_TAG "BEVoid"
     #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
     #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
-    #define GLSL_VERSION "#version 300 es\n"
-    #define PRECISION "precision mediump float;\n"
+    // Adreno требует #version 300 es ПЕРВОЙ строкой, без пустых строк перед ней
+    #define GLSL_VERSION "#version 300 es"
+    #define PRECISION "\nprecision mediump float;"
 #else
     #include <glad/glad.h>
     #define LOGI(...) std::printf(__VA_ARGS__)
@@ -45,10 +46,15 @@ static std::string loadShaderFile(const std::string& path) {
                         std::istreambuf_iterator<char>());
 }
 
-static std::string adaptShaderForPlatform(const std::string& src) {
+static std::string adaptShaderForPlatform(const std::string& src, bool isFragShader) {
     std::string out = GLSL_VERSION;
 #if defined(BEVOID_PLATFORM_ANDROID)
-    out += PRECISION;
+    // precision только во фрагментном шейдере
+    if (isFragShader) {
+        out += "\nprecision mediump float;";
+    }
+#else
+    (void)isFragShader;
 #endif
     out += src;
     return out;
@@ -135,7 +141,7 @@ void main() {
     FragPos = aPos; Normal = aNormal; Color = aColor; Height = aPos.y;
     gl_Position = uProj * uView * vec4(aPos, 1.0);
 }
-)");
+)", false);
     fsSrc = adaptShaderForPlatform(R"(
 in vec3 FragPos; in vec3 Normal; in vec3 Color; in float Height;
 out vec4 fragColor;
@@ -149,7 +155,7 @@ void main() {
     result = mix(result, uSkyColor, fog * 0.3);
     fragColor = vec4(result, 1.0);
 }
-)");
+)", true);
 #else
     // Desktop — пробуем файлы, иначе fallback
     vsSrc = loadShaderFile("shaders/terrain.vert");
@@ -187,8 +193,8 @@ void main() {
 }
 )";
     } else {
-        vsSrc = adaptShaderForPlatform(vsSrc);
-        fsSrc = adaptShaderForPlatform(fsSrc);
+        vsSrc = adaptShaderForPlatform(vsSrc, false);
+        fsSrc = adaptShaderForPlatform(fsSrc, true);
     }
 #endif
 
