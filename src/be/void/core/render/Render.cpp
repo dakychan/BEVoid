@@ -22,10 +22,16 @@
 
 #if defined(BEVOID_PLATFORM_ANDROID)
     #include <GLES3/gl3.h>
+    #include <android/log.h>
+    #define LOG_TAG "BEVoid"
+    #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+    #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
     #define GLSL_VERSION "#version 300 es\n"
     #define PRECISION "precision mediump float;\n"
 #else
     #include <glad/glad.h>
+    #define LOGI(...) std::printf(__VA_ARGS__)
+    #define LOGE(...) std::fprintf(stderr, __VA_ARGS__)
     #define GLSL_VERSION "#version 330 core\n"
     #define PRECISION ""
 #endif
@@ -99,7 +105,7 @@ static GLuint compileShader(GLenum type, const char* src) {
     if (!ok) {
         char log[512];
         glGetShaderInfoLog(s, 512, nullptr, log);
-        std::cerr << "[Render] Shader error: " << log << "\n";
+        LOGE("[Render] Shader error: %s\n", log);
         glDeleteShader(s);
         return 0;
     }
@@ -150,7 +156,7 @@ void main() {
     fsSrc = loadShaderFile("shaders/terrain.frag");
 
     if (vsSrc.empty() || fsSrc.empty()) {
-        std::cerr << "[Render] Shader files not found, using fallback\n";
+        LOGE("[Render] Shader files not found, using fallback\n");
         vsSrc = R"(
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec3 aNormal;
@@ -202,7 +208,7 @@ void main() {
     if (!ok) {
         char log[512];
         glGetProgramInfoLog(m_program, 512, nullptr, log);
-        std::cerr << "[Render] Link error: " << log << "\n";
+        LOGE("[Render] Link error: %s\n", log);
         return false;
     }
 
@@ -218,7 +224,7 @@ void main() {
     m_uSkyColor = glGetUniformLocation(m_program, "uSkyColor");
     m_uAmbient  = glGetUniformLocation(m_program, "uAmbient");
 
-    std::cout << "[Render] Terrain shaders OK\n";
+    LOGI("[Render] Terrain shaders OK\n");
     return true;
 }
 
