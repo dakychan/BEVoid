@@ -278,34 +278,8 @@ void Render::draw(float time, const Vec3& camPos, float yaw, float pitch, int wi
     float projMat[16];
     mat4Perspective(70.0f * 3.14159f / 180.0f, aspect, 0.01f, 1000.0f, projMat);
 
-    // 1. Sky dome (если собрался)
-    float safePitch = pitch;
-    if (safePitch > 1.56f) safePitch = 1.56f;
-    if (safePitch < -1.56f) safePitch = -1.56f;
-
-    if (m_skyOk) {
-        // Sky — фон, отключаем cull (камера внутри сферы)
-        glDisable(GL_CULL_FACE);
-        glClear(GL_DEPTH_BUFFER_BIT);
-        glClearColor(st.skyR, st.skyG, st.skyB, 1.0f);
-
-        m_sky.setSkyColors(st.skyR, st.skyG, st.skyB, st.fogR, st.fogG, st.fogB);
-        m_sky.setSunColor(st.sunColorR, st.sunColorG, st.sunColorB);
-        float sDirX = -std::cos(safePitch) * std::sin(yaw);
-        float sDirY = std::sin(safePitch);
-        float sDirZ = -std::cos(safePitch) * std::cos(yaw);
-        float skyView[16];
-        mat4LookAt(0, 0, 0, sDirX, sDirY, sDirZ, skyView);
-        m_sky.draw(time, skyView, projMat, st.sunY);
-
-        // Terrain — только глубина
-        glClear(GL_DEPTH_BUFFER_BIT);
-    } else {
-        // Нет sky — обычный clear
-        glClearColor(st.skyR, st.skyG, st.skyB, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    }
-
+    glClearColor(st.skyR, st.skyG, st.skyB, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
@@ -313,6 +287,7 @@ void Render::draw(float time, const Vec3& camPos, float yaw, float pitch, int wi
     glUseProgram(m_program);
     glUniform1f(m_uTime, time);
 
+    glUniform3f(m_uCamPos, camPos.x, camPos.y, camPos.z);
     glUniform3f(m_uSunDir, st.sunX, st.sunY, st.sunZ);
     glUniform3f(m_uSunColor, st.sunColorR, st.sunColorG, st.sunColorB);
     glUniform3f(m_uSkyColor, st.fogR, st.fogG, st.fogB);
