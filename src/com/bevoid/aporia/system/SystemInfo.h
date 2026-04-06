@@ -40,6 +40,12 @@ struct SystemInfo {
     std::string gpu_vendor;
     std::string gpu_renderer;
     std::string gl_version;
+
+    void setGpuInfo(const char* vendor, const char* renderer, const char* version) {
+        gpu_vendor = vendor ? vendor : "N/A";
+        gpu_renderer = renderer ? renderer : "N/A";
+        gl_version = version ? version : "N/A";
+    }
 };
 
 } // namespace com::bevoid::aporia::system

@@ -20,6 +20,33 @@
 
 namespace be::void_::core::render {
 
+SimpleShader::~SimpleShader() {
+    if (program) {
+        glDeleteProgram(program);
+        program = 0;
+    }
+}
+
+bool SimpleShader::compile(const char* vs, const char* fs) {
+    GLuint v = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(v, 1, &vs, nullptr);
+    glCompileShader(v);
+    GLuint f = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(f, 1, &fs, nullptr);
+    glCompileShader(f);
+    program = glCreateProgram();
+    glAttachShader(program, v);
+    glAttachShader(program, f);
+    glLinkProgram(program);
+    glDeleteShader(v);
+    glDeleteShader(f);
+    return true;
+}
+
+void SimpleShader::use() const {
+    glUseProgram(program);
+}
+
 #if defined(BEVOID_PLATFORM_ANDROID)
 static const char* VERT_SRC = R"(
 #version 300 es
@@ -79,51 +106,59 @@ layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec3 aColor;
 
+out vec3 FragPos;
+out vec3 Normal;
+out vec3 Color;
+out float Height;
+
 uniform mat4 uView;
 uniform mat4 uProj;
-uniform vec3 uCamPos;
-uniform vec3 uSunDir;
-
-out vec3 vColor;
-out vec3 vNormal;
-out vec3 vWorldPos;
-out float vFog;
-out float vSunDot;
 
 void main() {
-    vec4 worldPos = vec4(aPos, 1.0);
-    vWorldPos = aPos;
-    vColor = aColor;
-    vNormal = mat3(uView) * aNormal;
-    vFog = clamp(distance(aPos, uCamPos) / 120.0, 0.0, 1.0);
-    vSunDot = max(dot(normalize(aNormal), uSunDir), 0.0);
-    gl_Position = uProj * uView * worldPos;
+    FragPos = aPos;
+    Normal = aNormal;
+    Color = aColor;
+    Height = aPos.y;
+    
+    gl_Position = uProj * uView * vec4(aPos, 1.0);
 }
 )";
 
 static const char* FRAG_SRC = R"(
 #version 330 core
-in vec3 vColor;
-in vec3 vNormal;
-in vec3 vWorldPos;
-in float vFog;
-in float vSunDot;
 
+in vec3 FragPos;
+in vec3 Normal;
+in vec3 Color;
+in float Height;
+
+out vec4 fragColor;
+
+uniform vec3 uSunDir;
 uniform vec3 uSunColor;
 uniform vec3 uSkyColor;
 uniform float uAmbient;
 
-out vec4 fragColor;
-
 void main() {
-    /* Рассеянный свет + направленный от солнца */
-    float light = uAmbient + vSunDot * 0.65;
-    vec3 color = vColor * light * uSunColor;
-
-    /* Туман по расстоянию */
-    color = mix(color, uSkyColor, vFog * vFog);
-
-    fragColor = vec4(color, 1.0);
+    // Нормализуем нормаль
+    vec3 norm = normalize(Normal);
+    
+    // Диффузное освещение от солнца
+    float diff = max(dot(norm, uSunDir), 0.0);
+    vec3 diffuse = diff * uSunColor;
+    
+    // Ambient освещение
+    vec3 ambient = uAmbient * uSkyColor;
+    
+    // Итоговый цвет = цвет биома * освещение
+    vec3 lighting = ambient + diffuse;
+    vec3 result = Color * lighting;
+    
+    // Туман по высоте (опционально)
+    float fogFactor = clamp((Height - 50.0) / 150.0, 0.0, 1.0);
+    result = mix(result, uSkyColor, fogFactor * 0.3);
+    
+    fragColor = vec4(result, 1.0);
 }
 )";
 #endif
@@ -236,29 +271,25 @@ void Render::shutdown() {
 
 void Render::updateChunks(float playerX, float playerZ, float dt) {
     m_chunkManager.update(playerX, playerZ, dt);
-    m_cycles.update(dt); /* обновить цикл дня/ночи */
+    m_cycles.update(dt);
 }
 
-void Render::draw(float time, const movement::Vec3& camPos, float yaw, float pitch) {
-    /* Цвет неба из Cycles */
+void Render::draw(float time, const Vec3& camPos, float yaw, float pitch, int winWidth, int winHeight) {
     auto& st = m_cycles.getState();
     glClearColor(st.skyR, st.skyG, st.skyB, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
-    glEnable(GL_CULL_FACE);
+    glEnable(GL_CULL_FACE);  // Включаем обратно
     glCullFace(GL_BACK);
 
     glUseProgram(m_program);
     glUniform1f(m_uTime, time);
-    glUniform3f(m_uCamPos, camPos.x, camPos.y, camPos.z);
 
-    /* День/ночь */
     glUniform3f(m_uSunDir, st.sunX, st.sunY, st.sunZ);
     glUniform3f(m_uSunColor, st.sunColorR, st.sunColorG, st.sunColorB);
     glUniform3f(m_uSkyColor, st.fogR, st.fogG, st.fogB);
     glUniform1f(m_uAmbient, st.ambientIntensity);
 
-    /* View */
     float dirX = -std::cos(pitch) * std::sin(yaw);
     float dirY = std::sin(pitch);
     float dirZ = -std::cos(pitch) * std::cos(yaw);
@@ -268,15 +299,13 @@ void Render::draw(float time, const movement::Vec3& camPos, float yaw, float pit
                viewMat);
     glUniformMatrix4fv(m_uView, 1, GL_FALSE, viewMat);
 
-    /* Projection */
+    float aspect = winWidth > 0 && winHeight > 0 ? (float)winWidth / (float)winHeight : 1.777f;
     float projMat[16];
-    mat4Perspective(70.0f * 3.14159f / 180.0f, 1280.0f / 720.0f, 0.1f, 200.0f, projMat);
+    mat4Perspective(70.0f * 3.14159f / 180.0f, aspect, 0.01f, 1000.0f, projMat);
     glUniformMatrix4fv(m_uProj, 1, GL_FALSE, projMat);
 
-    /* Рисуем чанки */
     m_chunkManager.draw();
 
-    /* --- Кроссхаир (простой + в центре экрана) --- */
     drawCrosshair();
     drawHand();
 }

@@ -11,7 +11,7 @@
 /*
  * be.void.screens — MenuScreen
  *
- * Главное меню: "Играть" (создать мир) и выход.
+ * Главное меню с текстом, кнопками, навигацией.
  */
 
 #ifndef BEVOID_MENU_SCREEN_H
@@ -20,6 +20,12 @@
 #include "screens/Screen.h"
 #include <string>
 #include <vector>
+
+#if defined(BEVOID_PLATFORM_ANDROID)
+    #include <GLES3/gl3.h>
+#else
+    #include <glad/glad.h>
+#endif
 
 namespace be::void_::screens {
 
@@ -42,10 +48,16 @@ public:
 
 private:
     void drawButton(float y, const std::string& text, bool selected) const;
+    void drawText(float x, float y, const std::string& text, float scale, float r, float g, float b) const;
+    void initShaders();
 
     std::vector<MenuItem> m_items;
     int m_selected = 0;
     ScreenID m_nextScreen = ScreenID::None;
+
+    GLuint m_buttonProg = 0;
+    GLuint m_textProg = 0;
+    bool m_shadersInit = false;
 };
 
 } // namespace be::void_::screens

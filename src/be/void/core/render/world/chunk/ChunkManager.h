@@ -9,7 +9,7 @@
  */
 
 /*
- * be.void.core.render.chunk — ChunkManager
+ * be.void.core.render.world.chunk — ChunkManager
  *
  * Управляет чанками вокруг игрока.
  * - Фоновая генерация в std::thread
@@ -17,11 +17,12 @@
  * - Мгновенная (мгновенная загрузка ближайших, фон — дальних)
  */
 
-#ifndef BEVOID_CHUNK_MANAGER_H
-#define BEVOID_CHUNK_MANAGER_H
+#ifndef BE_VOID_CORE_RENDER_WORLD_CHUNK_MANAGER_H
+#define BE_VOID_CORE_RENDER_WORLD_CHUNK_MANAGER_H
 
-#include "core/render/chunk/Chunk.h"
-#include "core/render/chunk/Noise.h"
+#include "Chunk.h"
+#include "Noise.h"
+#include "../biome/BiomeNoise.h"
 #include <unordered_map>
 #include <vector>
 #include <thread>
@@ -33,7 +34,7 @@
 static constexpr float CM_TERRAIN_HEIGHT = 12.0f;
 static constexpr float CM_TERRAIN_SCALE  = 0.04f;
 
-namespace be::void_::core::render::chunk {
+namespace be::void_::core::render::world::chunk {
 
 class ChunkManager {
 public:
@@ -81,6 +82,7 @@ private:
     uint32_t    m_seed = 42;
     int         m_renderDist = 4;   /* радиус чанков */
     Noise       m_noise;
+    std::unique_ptr<biome::BiomeNoise> m_biomeNoise;  /* Один экземпляр для всех */
 
     /* Загруженные чанки (GL поток) */
     std::unordered_map<ChunkKey, std::unique_ptr<Chunk>, ChunkKeyHash> m_chunks;
@@ -104,6 +106,6 @@ private:
     float m_accumTime = 0;
 };
 
-} // namespace be::void_::core::render::chunk
+} // namespace be::void_::core::render::world::chunk
 
-#endif // BEVOID_CHUNK_MANAGER_H
+#endif // BE_VOID_CORE_RENDER_WORLD_CHUNK_MANAGER_H

@@ -9,21 +9,21 @@
  */
 
 /*
- * be.void.core.render.chunk — Simplex Noise
+ * be.void.core.render.world.chunk — Simplex Noise
  *
  * Быстрый процедурный шум для генерации террейна.
  * Многооктавный — 4 октавы для реалистичного рельефа.
  */
 
-#ifndef BEVOID_NOISE_H
-#define BEVOID_NOISE_H
+#ifndef BE_VOID_CORE_RENDER_WORLD_CHUNK_NOISE_H
+#define BE_VOID_CORE_RENDER_WORLD_CHUNK_NOISE_H
 
 #include <cstdint>
 #include <cmath>
 #include <array>
 #include <random>
 
-namespace be::void_::core::render::chunk {
+namespace be::void_::core::render::world::chunk {
 
 class Noise {
 public:
@@ -48,6 +48,6 @@ private:
     static const std::array<int, 16*2> GRAD;
 };
 
-} // namespace be::void_::core::render::chunk
+} // namespace be::void_::core::render::world::chunk
 
-#endif // BEVOID_NOISE_H
+#endif // BE_VOID_CORE_RENDER_WORLD_CHUNK_NOISE_H

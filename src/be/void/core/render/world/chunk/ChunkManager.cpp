@@ -9,21 +9,25 @@
  */
 
 /*
- * be.void.core.render.chunk — ChunkManager implementation
+ * be.void.core.render.world.chunk — ChunkManager implementation
  *
  * Фоновая генерация чанков, загрузка GL, выгрузка далёких.
  */
 
-#include "core/render/chunk/ChunkManager.h"
+#include "ChunkManager.h"
+#include "../biome/BiomeNoise.h"
 #include <algorithm>
 #include <cmath>
 #include <thread>
 #include <chrono>
+#include <random>
 
-namespace be::void_::core::render::chunk {
+namespace be::void_::core::render::world::chunk {
 
 ChunkManager::ChunkManager()
-    : m_noise(m_seed)
+    : m_seed(std::random_device{}())
+    , m_noise(m_seed)
+    , m_biomeNoise(std::make_unique<biome::BiomeNoise>(m_seed))
 {
     m_worker = std::thread(&ChunkManager::workerThread, this);
 }
@@ -34,10 +38,8 @@ ChunkManager::~ChunkManager() {
 }
 
 float ChunkManager::getTerrainHeight(float worldX, float worldZ) const {
-    float wx = worldX * CM_TERRAIN_SCALE;
-    float wz = worldZ * CM_TERRAIN_SCALE;
-    float n = m_noise.octaveNoise2D(wx, wz, 4);
-    return (n * 0.5f + 0.5f) * CM_TERRAIN_HEIGHT;
+    auto sample = m_biomeNoise->sample(worldX, worldZ);
+    return sample.height * 200.0f;  // TERRAIN_HEIGHT = 200м
 }
 
 void ChunkManager::update(float playerX, float playerZ, float deltaTime) {
@@ -100,7 +102,7 @@ void ChunkManager::update(float playerX, float playerZ, float deltaTime) {
             if (dist <= 1) {
                 /* Ближайший — синхронно (мгновенно) */
                 auto chunk = std::make_unique<Chunk>(cx, cz, m_seed);
-                chunk->generate(m_noise);
+                chunk->generate(m_noise, *m_biomeNoise);
                 chunk->loadGL();
                 m_chunks[key] = std::move(chunk);
             } else {
@@ -163,7 +165,7 @@ void ChunkManager::workerThread() {
             std::lock_guard<std::mutex> lock(m_queueMutex);
             for (auto& pc : m_pending) {
                 if (pc.chunk && !pc.chunk->isGenerated() && !pc.chunk->isGenerating()) {
-                    pc.chunk->generate(m_noise);
+                    pc.chunk->generate(m_noise, *m_biomeNoise);
                     didWork = true;
                     break; /* один за итерацию — не блокируем надолго */
                 }
@@ -176,4 +178,4 @@ void ChunkManager::workerThread() {
     }
 }
 
-} // namespace be::void_::core::render::chunk
+} // namespace be::void_::core::render::world::chunk

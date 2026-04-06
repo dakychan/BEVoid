@@ -8,16 +8,9 @@
  * ============================================================
  */
 
-/*
- * be.void.core.movement
- *
- * WASD → ускорение → Physics::step() → позиция камеры.
- */
-
 #include "core/movement/Movement.h"
 #include <cmath>
 #include <algorithm>
-#include <cstdint>
 
 namespace be::void_::core::movement {
 
@@ -37,7 +30,7 @@ void Movement::onKey(input::Key key, input::KeyAction action) {
 }
 
 void Movement::onMouseMove(float dx, float dy) {
-    m_yaw   -= dx * MOUSE_SENS; /* инвертировано — право = правее */
+    m_yaw   -= dx * MOUSE_SENS;
     m_pitch -= dy * MOUSE_SENS;
     m_pitch = std::clamp(m_pitch, -1.5f, 1.5f);
 }
@@ -53,16 +46,14 @@ void Movement::update(float dt, physics::Physics& phys, float terrainHeight) {
     float cy = std::cos(m_yaw);
     float sy = std::sin(m_yaw);
     Vec3 forward = { -sy, 0, -cy };
-    Vec3 right   = { -cy, 0, sy }; /* A = лево, D = право */
+    Vec3 right   = { -cy, 0, sy };
 
-    /* Ускорение от ввода */
-    physics::Vec3 inputAccel = {0, 0, 0};
-    if (m_w) { inputAccel.x += forward.x * MOVE_ACCEL; inputAccel.z += forward.z * MOVE_ACCEL; }
-    if (m_s) { inputAccel.x -= forward.x * MOVE_ACCEL; inputAccel.z -= forward.z * MOVE_ACCEL; }
-    if (m_a) { inputAccel.x += right.x * MOVE_ACCEL;   inputAccel.z += right.z * MOVE_ACCEL; }
-    if (m_d) { inputAccel.x -= right.x * MOVE_ACCEL;   inputAccel.z -= right.z * MOVE_ACCEL; }
+    Vec3 inputAccel = {0, 0, 0};
+    if (m_w) { inputAccel = inputAccel + forward * MOVE_ACCEL; }
+    if (m_s) { inputAccel = inputAccel - forward * MOVE_ACCEL; }
+    if (m_a) { inputAccel = inputAccel + right * MOVE_ACCEL; }
+    if (m_d) { inputAccel = inputAccel - right * MOVE_ACCEL; }
 
-    /* Physics рассчитывает: гравитация, трение, интеграция, коллизии с террейном */
     phys.step(m_state, inputAccel, dt, m_space, terrainHeight);
 }
 

@@ -70,9 +70,6 @@ void GameScreen::update(float dt) {
 void GameScreen::render(float /*time*/) {
     if (!m_initialized) return;
 
-    auto pos = m_core.getMovement().getCameraPos();
-    m_core.getRender().updateChunks(pos.x, pos.z, 0.016f);
-
     m_core.render(m_time);
     m_api->swapBuffers();
 }

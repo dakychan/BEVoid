@@ -52,7 +52,6 @@ public:
     void   pollEvents();
     int32_t getWidth() const;
     int32_t getHeight() const;
-    void   updateChunks(float playerX, float playerZ, float dt);
 
     void setRenderCallback(void (*callback)(void* userData), void* userData) {
         m_renderCallback = callback;
@@ -93,7 +92,6 @@ public:
     void   pollEvents();
     int32_t getWidth() const;
     int32_t getHeight() const;
-    void   updateChunks(float playerX, float playerZ, float dt);
 
     /* Android accessors */
     void* getAndroidActivity() const;

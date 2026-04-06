@@ -9,16 +9,16 @@
  */
 
 /*
- * be.void.core.render.chunk — Chunk
+ * be.void.core.render.world.chunk — Chunk
  *
- * 16x16 блок террейна. Генерирует mesh из heightmap (Simplex noise).
+ * 64x64 блок террейна. Генерирует mesh из heightmap с биомами.
  * Генерация происходит асинхронно в фоновом потоке.
  */
 
-#ifndef BEVOID_CHUNK_H
-#define BEVOID_CHUNK_H
+#ifndef BE_VOID_CORE_RENDER_WORLD_CHUNK_H
+#define BE_VOID_CORE_RENDER_WORLD_CHUNK_H
 
-#include "core/render/chunk/Noise.h"
+#include "Noise.h"
 #include <cstdint>
 #include <vector>
 #include <atomic>
@@ -29,10 +29,14 @@
     #include <glad/glad.h>
 #endif
 
-namespace be::void_::core::render::chunk {
+namespace be::void_::core::render::world::biome {
+    class BiomeNoise;
+}
 
-static constexpr int CHUNK_SIZE  = 64;   /* 64x64 — высокая детализация */
-static constexpr int CHUNK_SCALE = 1;    /* 1 блок = 1 единица */
+namespace be::void_::core::render::world::chunk {
+
+static constexpr int CHUNK_SIZE  = 64;   /* 64x64 блоков в чанке */
+static constexpr int CHUNK_SCALE = 1;    /* 1 блок = 1 метр */
 static constexpr int HEIGHT_MAP  = CHUNK_SIZE + 1;
 
 struct ChunkVertex {
@@ -56,7 +60,7 @@ public:
     bool isGenerating() const { return m_generating; }
 
     /* Запустить генерацию меша (вызывается из фонового потока) */
-    void generate(const Noise& noise);
+    void generate(const Noise& noise, const biome::BiomeNoise& biomeNoise);
 
     /* Загрузить GL буферы (вызывается из GL потока) */
     void loadGL();
@@ -92,6 +96,6 @@ private:
     bool m_glLoaded = false;
 };
 
-} // namespace be::void_::core::render::chunk
+} // namespace be::void_::core::render::world::chunk
 
-#endif // BEVOID_CHUNK_H
+#endif // BE_VOID_CORE_RENDER_WORLD_CHUNK_H

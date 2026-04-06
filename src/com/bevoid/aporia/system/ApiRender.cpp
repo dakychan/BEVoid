@@ -52,7 +52,8 @@ bool ApiRender::create(const char* title, int width, int height) {
     glfwMakeContextCurrent(m_window);
     glfwSwapInterval(1);
 
-    /* Callbacks для drag/resize */
+    glfwSetWindowUserPointer(m_window, this);
+
     glfwSetWindowRefreshCallback(m_window, [](GLFWwindow* win) {
         ApiRender* self = reinterpret_cast<ApiRender*>(glfwGetWindowUserPointer(win));
         if (self) {
@@ -69,8 +70,6 @@ bool ApiRender::create(const char* title, int width, int height) {
             glfwSwapBuffers(win);
         }
     });
-
-    glfwSetWindowUserPointer(m_window, this);
 
     std::cout << "[ApiRender] Window created: " << width << "x" << height << "\n";
     return true;
@@ -112,10 +111,7 @@ int32_t ApiRender::getHeight() const {
     return 0;
 }
 
-void ApiRender::updateChunks(float playerX, float playerZ, float /*dt*/) {
-    /* Stub — чанки обновляются через Render */
-    (void)playerX; (void)playerZ;
-}
+
 
 } // namespace com::bevoid::aporia::system
 

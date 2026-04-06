@@ -9,16 +9,16 @@
  */
 
 /*
- * be.void.core.render.chunk — Simplex Noise implementation
+ * be.void.core.render.world.chunk — Simplex Noise implementation
  *
  * Ken Perlin's simplex noise, 2D.
  */
 
-#include "core/render/chunk/Noise.h"
+#include "Noise.h"
 #include <algorithm>
 #include <random>
 
-namespace be::void_::core::render::chunk {
+namespace be::void_::core::render::world::chunk {
 
 /* Градиенты для 2D simplex */
 const std::array<int, 32> Noise::GRAD = {
@@ -115,4 +115,4 @@ float Noise::octaveNoise2D(float x, float y, int octaves) const {
     return total / maxVal; /* нормализация [-1, 1] */
 }
 
-} // namespace be::void_::core::render::chunk
+} // namespace be::void_::core::render::world::chunk

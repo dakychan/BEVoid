@@ -8,18 +8,13 @@
  * ============================================================
  */
 
-/*
- * be.void.core.render
- *
- * Terrain renderer — чанки с шумом, 3D камера.
- */
-
 #ifndef BEVOID_RENDER_H
 #define BEVOID_RENDER_H
 
 #include "core/movement/Movement.h"
-#include "core/render/chunk/ChunkManager.h"
+#include "core/render/world/chunk/ChunkManager.h"
 #include "physics/Cycles.h"
+#include "Vec3.h"
 #include <cstdint>
 
 #if defined(BEVOID_PLATFORM_ANDROID)
@@ -30,6 +25,14 @@
 
 namespace be::void_::core::render {
 
+class SimpleShader {
+public:
+    GLuint program = 0;
+    bool compile(const char* vs, const char* fs);
+    void use() const;
+    ~SimpleShader();
+};
+
 class Render {
 public:
     Render();
@@ -39,12 +42,18 @@ public:
     bool initChunks();
     void shutdown();
 
-    void draw(float time, const movement::Vec3& camPos, float yaw, float pitch);
+    void draw(float time, const Vec3& camPos, float yaw, float pitch, int winWidth, int winHeight);
     void updateChunks(float playerX, float playerZ, float dt);
 
-    chunk::ChunkManager& getChunkManager() { return m_chunkManager; }
+    world::chunk::ChunkManager& getChunkManager() { return m_chunkManager; }
 
-    /* Terrain shader */
+    void drawCrosshair();
+    void drawHand();
+
+    static void mat4Perspective(float fovY, float aspect, float nearZ, float farZ, float* out);
+    static void mat4LookAt(float ex, float ey, float ez, float cx, float cy, float cz, float* out);
+
+private:
     GLuint m_program  = 0;
     GLint  m_uTime    = -1;
     GLint  m_uView    = -1;
@@ -55,16 +64,15 @@ public:
     GLint  m_uSkyColor = -1;
     GLint  m_uAmbient  = -1;
 
-    chunk::ChunkManager m_chunkManager;
+    world::chunk::ChunkManager m_chunkManager;
     physics::Cycles     m_cycles;
 
-    /* Кроссхаир */
-    void drawCrosshair();
-    void drawHand();
+    SimpleShader m_crosshairShader;
+    SimpleShader m_handShader;
+    bool m_shadersInit = false;
 
-    /* Математика матриц (column-major для OpenGL) */
-    static void mat4Perspective(float fovY, float aspect, float nearZ, float farZ, float* out);
-    static void mat4LookAt(float ex, float ey, float ez, float cx, float cy, float cz, float* out);
+    GLuint m_crossVao = 0, m_crossVbo = 0;
+    GLuint m_handVao = 0, m_handVbo = 0, m_handEbo = 0;
 };
 
 } // namespace be::void_::core::render

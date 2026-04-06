@@ -8,12 +8,6 @@
  * ============================================================
  */
 
-/*
- * be.void.physics
- *
- * Рассчитывает: гравитация → трение → интеграция Эйлера → коллизия с землёй.
- */
-
 #include "physics/Physics.h"
 #include <cmath>
 #include <algorithm>
@@ -25,7 +19,6 @@ void Physics::step(PhysicsState& state, Vec3 inputAccel, float dt, bool wantJump
 
     Vec3 accel = inputAccel;
 
-    /* Трение (на земле — сильное, в воздухе — drag) */
     if (state.onGround) {
         float speed = std::sqrt(state.velocity.x * state.velocity.x +
                                 state.velocity.z * state.velocity.z);
@@ -36,26 +29,21 @@ void Physics::step(PhysicsState& state, Vec3 inputAccel, float dt, bool wantJump
             accel.z -= nz * FRICTION * speed;
         }
     } else {
-        /* Сопротивление воздуха */
         state.velocity.x *= AIR_DRAG;
         state.velocity.z *= AIR_DRAG;
     }
 
-    /* Гравитация */
     accel.y = GRAVITY;
 
-    /* Прыжок */
     if (wantJump && state.onGround) {
         state.velocity.y = JUMP_VEL;
         state.onGround = false;
     }
 
-    /* Интеграция Эйлера */
     state.velocity.x += accel.x * dt;
     state.velocity.y += accel.y * dt;
     state.velocity.z += accel.z * dt;
 
-    /* Clamp горизонтальной скорости */
     float hSpeed = std::sqrt(state.velocity.x * state.velocity.x +
                              state.velocity.z * state.velocity.z);
     if (hSpeed > MAX_SPEED) {
@@ -64,17 +52,25 @@ void Physics::step(PhysicsState& state, Vec3 inputAccel, float dt, bool wantJump
         state.velocity.z *= scale;
     }
 
-    /* Позиция */
     state.position.x += state.velocity.x * dt;
     state.position.y += state.velocity.y * dt;
     state.position.z += state.velocity.z * dt;
 
-    /* Коллизия с террейном */
-    float groundY = terrainHeight + 1.7f; /* +1.7m высота глаз */
+    float groundY = terrainHeight + 1.7f;
+    
+    // Плавное приземление вместо телепорта
     if (state.position.y <= groundY) {
-        state.position.y = groundY;
+        // Если игрок близко к земле, плавно опускаем
+        if (state.position.y > groundY - 0.5f) {
+            state.position.y = groundY;
+        } else {
+            // Если падает быстро, просто останавливаем
+            state.position.y = groundY;
+        }
         state.velocity.y = 0;
         state.onGround = true;
+    } else {
+        state.onGround = false;
     }
 }
 

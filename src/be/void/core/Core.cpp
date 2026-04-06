@@ -36,6 +36,9 @@ bool Core::init() {
         return false;
     }
 
+    auto& state = m_movement.getState();
+    std::cout << "[Core] Player spawn at (" << state.position.x << ", " << state.position.y << ", " << state.position.z << ")\n";
+
     std::cout << "[Core] All subsystems initialized\n";
     return true;
 }
@@ -46,20 +49,19 @@ void Core::shutdown() {
 }
 
 void Core::update(float deltaTime) {
-    /* Получаем позицию и высоту террейна под игроком */
     auto camPos = m_movement.getCameraPos();
     float terrainH = m_render.getChunkManager().getTerrainHeight(camPos.x, camPos.z);
 
     m_movement.update(deltaTime, m_physics, terrainH);
     m_network.update(deltaTime);
 
-    /* Обновить чанки вокруг игрока (в фоне) */
     m_render.updateChunks(camPos.x, camPos.z, deltaTime);
 }
 
 void Core::render(float time) {
     auto& mv = m_movement;
-    m_render.draw(time, mv.getCameraPos(), mv.getYaw(), mv.getPitch());
+    int w = 1280, h = 720;
+    m_render.draw(time, mv.getCameraPos(), mv.getYaw(), mv.getPitch(), w, h);
 }
 
 } // namespace be::void_::core

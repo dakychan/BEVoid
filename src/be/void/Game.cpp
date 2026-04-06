@@ -147,9 +147,7 @@ bool Game::initOpenGL() {
 
     auto& info = const_cast<com::bevoid::aporia::system::SystemInfo&>(
         m_api->getOsManager().getInfo());
-    info.gl_version   = glVer ? glVer : "N/A";
-    info.gpu_vendor   = glVen ? glVen : "N/A";
-    info.gpu_renderer = glRen ? glRen : "N/A";
+    info.setGpuInfo(glVen, glRen, glVer);
 
     glEnable(GL_DEPTH_TEST);
 
