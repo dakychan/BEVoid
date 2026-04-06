@@ -284,6 +284,10 @@ void Render::draw(float time, const Vec3& camPos, float yaw, float pitch, int wi
     if (safePitch < -1.56f) safePitch = -1.56f;
 
     if (m_skyOk) {
+        // Sky — фон, НЕ очищаем цвет
+        glClear(GL_DEPTH_BUFFER_BIT);
+        glClearColor(st.skyR, st.skyG, st.skyB, 1.0f);
+
         m_sky.setSkyColors(st.skyR, st.skyG, st.skyB, st.fogR, st.fogG, st.fogB);
         m_sky.setSunColor(st.sunColorR, st.sunColorG, st.sunColorB);
         float sDirX = -std::cos(safePitch) * std::sin(yaw);
@@ -292,11 +296,15 @@ void Render::draw(float time, const Vec3& camPos, float yaw, float pitch, int wi
         float skyView[16];
         mat4LookAt(0, 0, 0, sDirX, sDirY, sDirZ, skyView);
         m_sky.draw(time, skyView, projMat, st.sunY);
+
+        // Terrain — только глубина
+        glClear(GL_DEPTH_BUFFER_BIT);
+    } else {
+        // Нет sky — обычный clear
+        glClearColor(st.skyR, st.skyG, st.skyB, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     }
 
-    // 2. Terrain
-    glClearColor(st.skyR, st.skyG, st.skyB, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
