@@ -6,6 +6,17 @@
 #include <cmath>
 #include <algorithm>
 
+#if defined(BEVOID_PLATFORM_ANDROID)
+    #include <android/log.h>
+    #define LOG_TAG "BEVoid"
+    #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+    #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+#else
+    #include <cstdio>
+    #define LOGI(...) std::printf(__VA_ARGS__)
+    #define LOGE(...) std::fprintf(stderr, __VA_ARGS__)
+#endif
+
 namespace be::void_::core::render::world {
 
 /* ---- helpers ---- */
@@ -24,6 +35,11 @@ float ChunkManager::terrainHeight(float wx, float wz) const {
 void ChunkManager::update(float px, float pz, float dt) {
     int pcx = (int)std::floor(px / CHUNK_SIZE);
     int pcz = (int)std::floor(pz / CHUNK_SIZE);
+    static int lastLogCx = 0x7FFFFFFF, lastLogCz = 0x7FFFFFFF;
+    if (pcx != lastLogCx || pcz != lastLogCz) {
+        LOGI("[ChunkManager] Player at chunk (%d,%d) pos (%.1f,%.1f)\n", pcx, pcz, px, pz);
+        lastLogCx = pcx; lastLogCz = pcz;
+    }
     m_acc += dt;
     if (m_acc < 0.5f) { flushPending(); return; }
     m_acc = 0;
@@ -142,6 +158,8 @@ void ChunkManager::buildChunk(int cx, int cz) {
     auto chunk = std::make_unique<Chunk>(cx, cz);
     chunk->load(mesh);
     m_chunks[Key{cx,cz}] = std::move(chunk);
+    LOGI("[ChunkManager] Built chunk (%d,%d): %d verts, %d idx\n",
+         cx, cz, (int)mesh.verts.size(), (int)mesh.idx.size());
 }
 
 void ChunkManager::flushPending() {

@@ -15,7 +15,17 @@
  */
 
 #include "core/Core.h"
-#include <iostream>
+
+#if defined(BEVOID_PLATFORM_ANDROID)
+    #include <android/log.h>
+    #define LOG_TAG "BEVoid"
+    #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+    #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+#else
+    #include <iostream>
+    #define LOGI(...) std::printf(__VA_ARGS__)
+    #define LOGE(...) std::fprintf(stderr, __VA_ARGS__)
+#endif
 
 namespace be::void_::core {
 
@@ -23,29 +33,29 @@ Core::Core() = default;
 Core::~Core() = default;
 
 bool Core::init() {
-    std::cout << "[Core] Initializing subsystems...\n";
+    LOGI("[Core] Initializing subsystems...\n");
 
     m_input.setListener(&m_movement);
 
     if (!m_render.initShaders()) {
-        std::cerr << "[Core] Failed to init shaders\n";
+        LOGE("[Core] Failed to init shaders\n");
         return false;
     }
     if (!m_render.initChunks()) {
-        std::cerr << "[Core] Failed to init chunks\n";
+        LOGE("[Core] Failed to init chunks\n");
         return false;
     }
 
     auto& state = m_movement.getState();
-    std::cout << "[Core] Player spawn at (" << state.position.x << ", " << state.position.y << ", " << state.position.z << ")\n";
-
-    std::cout << "[Core] All subsystems initialized\n";
+    LOGI("[Core] Player spawn at (%.1f, %.1f, %.1f)\n",
+         state.position.x, state.position.y, state.position.z);
+    LOGI("[Core] All subsystems initialized\n");
     return true;
 }
 
 void Core::shutdown() {
     m_render.shutdown();
-    std::cout << "[Core] Shutdown complete\n";
+    LOGI("[Core] Shutdown complete\n");
 }
 
 void Core::update(float deltaTime) {
