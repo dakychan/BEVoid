@@ -284,7 +284,8 @@ void Render::draw(float time, const Vec3& camPos, float yaw, float pitch, int wi
     if (safePitch < -1.56f) safePitch = -1.56f;
 
     if (m_skyOk) {
-        // Sky — фон, НЕ очищаем цвет
+        // Sky — фон, отключаем cull (камера внутри сферы)
+        glDisable(GL_CULL_FACE);
         glClear(GL_DEPTH_BUFFER_BIT);
         glClearColor(st.skyR, st.skyG, st.skyB, 1.0f);
 
