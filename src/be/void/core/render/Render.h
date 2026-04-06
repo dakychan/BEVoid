@@ -60,6 +60,7 @@ private:
 
     world::ChunkManager m_chunkManager;
     SkyRenderer         m_sky;
+    bool                m_skyOk = false;
     physics::Cycles     m_cycles;
 
     GLuint m_crossVao = 0, m_crossVbo = 0;
