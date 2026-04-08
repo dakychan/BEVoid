@@ -28,6 +28,7 @@ enum class Key : int32_t {
     W = 87, S = 83, A = 65, D = 68,
     Space = 32, Escape = 256,
     Up = 265, Down = 264, Left = 263, Right = 262,
+    LeftShift = 340,
     Unknown = -1
 };
 

@@ -30,6 +30,7 @@ static Key toKey(int glfwKey) {
         case 68:  case 262: return Key::D;
         case 32:             return Key::Space;
         case 256:            return Key::Escape;
+        case 340:            return Key::LeftShift;
         default:             return Key::Unknown;
     }
 }

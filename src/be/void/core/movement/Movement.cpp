@@ -25,6 +25,7 @@ void Movement::onKey(input::Key key, input::KeyAction action) {
         case input::Key::A: m_a = pressed; break;
         case input::Key::D: m_d = pressed; break;
         case input::Key::Space: m_space = pressed; break;
+        case input::Key::LeftShift: m_shift = pressed; break;
         default: break;
     }
 }
@@ -42,6 +43,10 @@ Vec3 Movement::getCameraDir() const {
 
 void Movement::update(float dt, physics::Physics& phys, float terrainHeight) {
     if (dt <= 0.0f || dt > 0.1f) return;
+
+    // Приседание — плавный offset камеры
+    float targetCrouch = m_shift ? CROUCH_HEIGHT : 0.0f;
+    m_crouchOffset += (targetCrouch - m_crouchOffset) * std::min(1.0f, CROUCH_SPEED * dt);
 
     float cy = std::cos(m_yaw);
     float sy = std::sin(m_yaw);

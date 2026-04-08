@@ -32,9 +32,11 @@ struct SunMoonState {
     /* Луна */
     float moonX, moonY, moonZ;
     float moonPhase;            /* 0..1 (полная→новая) */
+    float moonColorR, moonColorG, moonColorB;
 
     /* Небо */
-    float skyR, skyG, skyB;     /* цвет неба */
+    float skyR, skyG, skyB;     /* цвет неба (зенит) */
+    float horizonR, horizonG, horizonB; /* цвет горизонта */
     float fogR, fogG, fogB;     /* цвет тумана */
     float ambientIntensity;     /* 0..1 */
 
@@ -71,7 +73,7 @@ private:
     void calcSkyColor();
 
     float m_timezone = 3.0f; /* UTC+3 по умолчанию (Москва) */
-    float m_timeOfDay = 8.0f * 60.0f; /* старт в 8:00 утра (480 мин) */
+    float m_timeOfDay = 17.0f * 60.0f; /* старт в 17:00 — ближе к закату (1020 мин) */
     SunMoonState m_state;
 
     /* Фазы луны (цикл ~29.5 дней) */

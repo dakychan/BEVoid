@@ -304,9 +304,12 @@ void Render::draw(float time, const Vec3& camPos, float yaw, float pitch, int wi
 
     /* Рисуем скай-домен с правильными цветами и солнцем */
     if (m_skyOk) {
-        m_sky.setSkyColors(0.2f, 0.4f, 0.8f, 0.6f, 0.75f, 0.9f);
+        m_sky.setSkyColors(st.skyR, st.skyG, st.skyB,
+                           st.horizonR, st.horizonG, st.horizonB);
         m_sky.setSunColor(st.sunColorR, st.sunColorG, st.sunColorB);
         m_sky.setSunDirection(st.sunX, st.sunY, st.sunZ);
+        m_sky.setMoonColor(st.moonColorR, st.moonColorG, st.moonColorB);
+        m_sky.setMoonDirection(st.moonX, st.moonY, st.moonZ);
         float sunElevation = st.sunY;
         m_sky.draw(time, viewMat, projMat, sunElevation);
     }

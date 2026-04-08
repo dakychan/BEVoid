@@ -218,6 +218,8 @@ void SkyRenderer::draw(float time, const float* viewMat, const float* projMat, f
     glUniform3f(glGetUniformLocation(m_prog, "uHorizonColor"), m_horizonR, m_horizonG, m_horizonB);
     glUniform3f(glGetUniformLocation(m_prog, "uSunColor"), m_sunR, m_sunG, m_sunB);
     glUniform3f(glGetUniformLocation(m_prog, "uSunDir"), m_sunDirX, m_sunDirY, m_sunDirZ);
+    glUniform3f(glGetUniformLocation(m_prog, "uMoonColor"), m_moonR, m_moonG, m_moonB);
+    glUniform3f(glGetUniformLocation(m_prog, "uMoonDir"), m_moonDirX, m_moonDirY, m_moonDirZ);
     glUniform1f(glGetUniformLocation(m_prog, "uSunElevation"), sunElevation);
     glUniformMatrix4fv(glGetUniformLocation(m_prog, "uView"), 1, GL_FALSE, viewMat);
     glUniformMatrix4fv(glGetUniformLocation(m_prog, "uProj"), 1, GL_FALSE, projMat);

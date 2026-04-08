@@ -74,8 +74,11 @@ void Core::update(float deltaTime) {
 
 void Core::render(float time) {
     auto& mv = m_movement;
+    Vec3 camPos = mv.getCameraPos();
+    // Приседание — опускаем камеру
+    camPos.y -= mv.getCrouchOffset();
     int w = 1280, h = 720;
-    m_render.draw(time, mv.getCameraPos(), mv.getYaw(), mv.getPitch(), w, h);
+    m_render.draw(time, camPos, mv.getYaw(), mv.getPitch(), w, h);
 }
 
 } // namespace be::void_::core

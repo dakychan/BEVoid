@@ -32,6 +32,7 @@ public:
     Vec3 getCameraDir() const;
     float getYaw()   const { return m_yaw; }
     float getPitch() const { return m_pitch; }
+    float getCrouchOffset() const { return m_crouchOffset; }
     bool  onGround() const { return m_state.onGround; }
 
     physics::PhysicsState& getState() { return m_state; }
@@ -44,9 +45,14 @@ private:
     bool m_w = false, m_s = false;
     bool m_a = false, m_d = false;
     bool m_space = false;
+    bool m_shift = false;
+
+    float m_crouchOffset = 0.0f;
 
     static constexpr float MOVE_ACCEL = 40.0f;
     static constexpr float MOUSE_SENS = 0.0005f;
+    static constexpr float CROUCH_HEIGHT = 1.2f;
+    static constexpr float CROUCH_SPEED = 5.0f;
 };
 
 } // namespace be::void_::core::movement
