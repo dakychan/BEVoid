@@ -66,13 +66,22 @@ static const char* A_FRAG =
 "uniform vec3 uSunColor;\n"
 "uniform vec3 uSkyColor;\n"
 "uniform float uAmbient;\n"
+"uniform vec3 uCamPos;\n"
 "void main() {\n"
 "    vec3 norm = normalize(Normal);\n"
 "    float diff = max(dot(norm, uSunDir), 0.0);\n"
 "    vec3 lighting = uAmbient * uSkyColor + diff * uSunColor;\n"
 "    vec3 result = Color * lighting;\n"
-"    float fog = clamp((Height - 50.0) / 150.0, 0.0, 1.0);\n"
-"    result = mix(result, uSkyColor, fog * 0.3);\n"
+"    float dist = length(FragPos - uCamPos);\n"
+"    float fog = clamp((dist - 40.0) / 100.0, 0.0, 1.0);\n"
+"    fog = fog * fog * (3.0 - 2.0 * fog);\n"
+"    vec3 camDir = normalize(FragPos - uCamPos);\n"
+"    float h = camDir.y;\n"
+"    vec3 zenith = vec3(0.25, 0.45, 0.90);\n"
+"    vec3 horizon = mix(vec3(0.65, 0.78, 0.92), uSkyColor, 0.5);\n"
+"    float t = pow(max(h, 0.0), 0.4);\n"
+"    vec3 sky = mix(horizon, zenith, t);\n"
+"    result = mix(result, sky, fog);\n"
 "    fragColor = vec4(result, 1.0);\n"
 "}\n";
 
@@ -107,13 +116,22 @@ static const char* D_FRAG =
 "uniform vec3 uSunColor;\n"
 "uniform vec3 uSkyColor;\n"
 "uniform float uAmbient;\n"
+"uniform vec3 uCamPos;\n"
 "void main() {\n"
 "    vec3 norm = normalize(Normal);\n"
 "    float diff = max(dot(norm, uSunDir), 0.0);\n"
 "    vec3 lighting = uAmbient * uSkyColor + diff * uSunColor;\n"
 "    vec3 result = Color * lighting;\n"
-"    float fog = clamp((Height - 50.0) / 150.0, 0.0, 1.0);\n"
-"    result = mix(result, uSkyColor, fog * 0.3);\n"
+"    float dist = length(FragPos - uCamPos);\n"
+"    float fog = clamp((dist - 40.0) / 100.0, 0.0, 1.0);\n"
+"    fog = fog * fog * (3.0 - 2.0 * fog);\n"
+"    vec3 camDir = normalize(FragPos - uCamPos);\n"
+"    float h = camDir.y;\n"
+"    vec3 zenith = vec3(0.25, 0.45, 0.90);\n"
+"    vec3 horizon = mix(vec3(0.65, 0.78, 0.92), uSkyColor, 0.5);\n"
+"    float t = pow(max(h, 0.0), 0.4);\n"
+"    vec3 sky = mix(horizon, zenith, t);\n"
+"    result = mix(result, sky, fog);\n"
 "    fragColor = vec4(result, 1.0);\n"
 "}\n";
 #endif
@@ -283,6 +301,15 @@ void Render::draw(float time, const Vec3& camPos, float yaw, float pitch, int wi
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
+
+    /* Рисуем скай-домен с правильными цветами и солнцем */
+    if (m_skyOk) {
+        m_sky.setSkyColors(0.2f, 0.4f, 0.8f, 0.6f, 0.75f, 0.9f);
+        m_sky.setSunColor(st.sunColorR, st.sunColorG, st.sunColorB);
+        m_sky.setSunDirection(st.sunX, st.sunY, st.sunZ);
+        float sunElevation = st.sunY;
+        m_sky.draw(time, viewMat, projMat, sunElevation);
+    }
 
     glUseProgram(m_program);
     glUniform1f(m_uTime, time);

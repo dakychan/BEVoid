@@ -10,169 +10,84 @@
 #include <cmath>
 #include <vector>
 #include <cstdint>
+#include <fstream>
+#include <string>
+
+#if defined(BEVOID_PLATFORM_ANDROID)
+    #include <android/log.h>
+    #define SKY_LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "BEVoid", __VA_ARGS__)
+#else
+    #include <cstdio>
+    #define SKY_LOGE(...) std::fprintf(stderr, __VA_ARGS__)
+#endif
 
 namespace be::void_::core::render {
 
-#if defined(BEVOID_PLATFORM_ANDROID)
-static const char* SKY_VERT =
-"#version 300 es\n"
-"layout(location = 0) in vec3 aPos;\n"
-"out vec3 vDir;\n"
-"uniform mat4 uView;\n"
-"uniform mat4 uProj;\n"
-"void main() {\n"
-"    vDir = aPos;\n"
-"    mat4 v = uView;\n"
-"    v[3][0] = 0.0; v[3][1] = 0.0; v[3][2] = 0.0;\n"
-"    gl_Position = (uProj * v * vec4(aPos * 500.0, 1.0)).xyww;\n"
-"}\n";
-
-static const char* SKY_FRAG =
-"#version 300 es\n"
-"precision mediump float;\n"
-"in vec3 vDir;\n"
-"out vec4 fragColor;\n"
-"uniform float uTime;\n"
-"uniform vec3 uTopColor;\n"
-"uniform vec3 uHorizonColor;\n"
-"uniform vec3 uSunColor;\n"
-"uniform float uSunElevation;\n"
-
-// Simple hash noise
-"float hash(vec3 p){\n"
-"    p=fract(p*vec3(.1031,.1030,.0973));\n"
-"    p+=dot(p,p+33.33);\n"
-"    return fract((p.x+p.y)*p.z);\n"
-"}\n"
-
-"float noise(vec3 p){\n"
-"    vec3 i=floor(p),f=fract(p);\n"
-"    f=f*f*(3.-2.*f);\n"
-"    return mix(mix(mix(hash(i),hash(i+vec3(1,0,0)),f.x),\n"
-"       mix(hash(i+vec3(0,1,0)),hash(i+vec3(1,1,0)),f.x),f.y),\n"
-"       mix(mix(hash(i+vec3(0,0,1)),hash(i+vec3(1,0,1)),f.x),\n"
-"       mix(hash(i+vec3(0,1,1)),hash(i+vec3(1,1,1)),f.x),f.y),f.z);\n"
-"}\n"
-
-"float fbm(vec3 p){\n"
-"    float v=0.,a=.5;\n"
-"    mat3 m=mat3(1.,0.,0.,0.,1.,0.,0.,0.,1.);\n"
-"    for(int i=0;i<5;i++){\n"
-"        v+=a*noise(p);\n"
-"        p=p*2.01;\n"
-"        a*=.5;\n"
-"    }\n"
-"    return v;\n"
-"}\n"
-
-"void main(){\n"
-"    vec3 dir=normalize(vDir);\n"
-"    float h=dir.y;\n"
-
-// Яркий градиент неба
-"    float t=pow(max(h,0.),0.45);\n"
-"    vec3 sky=mix(uHorizonColor,uTopColor,t);\n"
-
-// Солнце
-"    vec3 sd=normalize(vec3(.5,max(uSunElevation,.15),.3));\n"
-"    float sdot=max(dot(dir,sd),0.);\n"
-"    sky+=uSunColor*(pow(sdot,300.)*5.+pow(sdot,8.)*0.35);\n"
-
-// Облака — яркие и заметные
-"    if(h>0.01){\n"
-"        vec3 cp=vec3(dir.xz*5.,uTime*.025);\n"
-"        float c=fbm(cp);\n"
-"        c=smoothstep(.38,.68,c);\n"
-"        float fade=smoothstep(.01,.12,h);\n"
-"        vec3 cc=vec3(.92,.93,.96)*(0.55+0.45*sdot);\n"
-"        sky=mix(sky,cc,c*fade*.85);\n"
-"    }\n"
-
-"    fragColor=vec4(sky,1.);\n"
-"}\n";
-#else
-static const char* SKY_VERT =
-"#version 330 core\n"
-"layout(location = 0) in vec3 aPos;\n"
-"out vec3 vDir;\n"
-"uniform mat4 uView;\n"
-"uniform mat4 uProj;\n"
-"void main() {\n"
-"    vDir = aPos;\n"
-"    mat4 v = uView;\n"
-"    v[3][0] = 0.0; v[3][1] = 0.0; v[3][2] = 0.0;\n"
-"    gl_Position = (uProj * v * vec4(aPos * 500.0, 1.0)).xyww;\n"
-"}\n";
-
-static const char* SKY_FRAG =
-"#version 330 core\n"
-"in vec3 vDir;\n"
-"out vec4 fragColor;\n"
-"uniform float uTime;\n"
-"uniform vec3 uTopColor;\n"
-"uniform vec3 uHorizonColor;\n"
-"uniform vec3 uSunColor;\n"
-"uniform float uSunElevation;\n"
-
-"vec3 mod289(vec3 x){return x-floor(x*(1./289.))*289.;}\n"
-"vec4 mod289(vec4 x){return x-floor(x*(1./289.))*289.;}\n"
-"vec4 perm(vec4 x){return mod289(((x*34.)+1.)*x);}\n"
-"float noise(vec3 p){\n"
-"    p=mod289(p);vec4 a=floor(p.yzxw);vec4 b=fract(p.yzxw);\n"
-"    b=b*b*(3.-2.*b);vec4 i=perm(a+perm(a.x+b.x));\n"
-"    vec4 c=fract(i);vec4 o1=fract(i*(1./41.));\n"
-"    vec4 o2=fract(o1*13.);vec4 o3=mix(o1,o2,b.x);\n"
-"    vec4 o4=mix(o3,o3+vec4(.25),b.y);\n"
-"    return mix(mix(o4.x,o4.z,b.z),mix(o4.y,o4.w,b.z),b.w);\n"
-"}\n"
-"float fbm(vec3 p){\n"
-"    float v=0.,a=.5;for(int i=0;i<5;i++){v+=a*noise(p);p*=2.01;a*=.5;}return v;\n"
-"}\n"
-"void main(){\n"
-"    vec3 dir=normalize(vDir);float h=dir.y;\n"
-"    float t=pow(max(h,0.),0.45);\n"
-"    vec3 sky=mix(uHorizonColor,uTopColor,t);\n"
-"    vec3 sd=normalize(vec3(.5,max(uSunElevation,.15),.3));\n"
-"    float sdot=max(dot(dir,sd),0.);\n"
-"    sky+=uSunColor*(pow(sdot,300.)*5.+pow(sdot,8.)*0.35);\n"
-"    if(h>0.01){\n"
-"        vec3 cp=vec3(dir.xz*5.,uTime*.025);\n"
-"        float c=fbm(cp);\n"
-"        c=smoothstep(.38,.68,c);\n"
-"        sky=mix(sky,vec3(.92,.93,.96)*(0.55+0.45*sdot),c*smoothstep(.01,.12,h)*.85);\n"
-"    }\n"
-"    fragColor=vec4(sky,1.);\n"
-"}\n";
-#endif
+static std::string loadSkyShader(const std::string& path) {
+    std::ifstream f(path);
+    if (!f.is_open()) return "";
+    return std::string((std::istreambuf_iterator<char>(f)),
+                        std::istreambuf_iterator<char>());
+}
 
 bool SkyRenderer::init() {
+    std::string vsSrc = loadSkyShader("shaders/sky.vert");
+    std::string fsSrc = loadSkyShader("shaders/sky.frag");
+    
+    if (vsSrc.empty()) {
+        SKY_LOGE("[SkyRenderer] ERROR: shaders sky.vert не найден!\n");
+        return false;
+    }
+    if (fsSrc.empty()) {
+        SKY_LOGE("[SkyRenderer] ERROR: shaders sky.frag не найден!\n");
+        return false;
+    }
+    
+    SKY_LOGE("[SkyRenderer] Шейдеры загружены, компилю...\n");
+    
     auto compile = [](GLuint type, const char* src) -> GLuint {
         GLuint s = glCreateShader(type);
         glShaderSource(s, 1, &src, nullptr);
         glCompileShader(s);
         GLint ok; glGetShaderiv(s, GL_COMPILE_STATUS, &ok);
-        if (!ok) { char l[512]; glGetShaderInfoLog(s, 512, nullptr, l); return 0; }
+        if (!ok) { char l[512]; glGetShaderInfoLog(s, 512, nullptr, l); 
+            SKY_LOGE("[SkyRenderer] Compile error: %s\n", l);
+            return 0; 
+        }
         return s;
     };
 
-    GLuint vs = compile(GL_VERTEX_SHADER, SKY_VERT);
-    GLuint fs = compile(GL_FRAGMENT_SHADER, SKY_FRAG);
-    if (!vs || !fs) return false;
+    GLuint vs = compile(GL_VERTEX_SHADER, vsSrc.c_str());
+    GLuint fs = compile(GL_FRAGMENT_SHADER, fsSrc.c_str());
+    if (!vs || !fs) {
+        SKY_LOGE("[SkyRenderer] ОШИБКА КОМПИЛЯЦИИ! vs=%d fs=%d\n", vs, fs);
+        return false;
+    }
+    SKY_LOGE("[SkyRenderer] Шейдеры скомпилены OK\n");
 
     m_prog = glCreateProgram();
     glAttachShader(m_prog, vs); glAttachShader(m_prog, fs);
     glLinkProgram(m_prog);
+    GLint linked;
+    glGetProgramiv(m_prog, GL_LINK_STATUS, &linked);
+    if (!linked) {
+        char log[512];
+        glGetProgramInfoLog(m_prog, 512, nullptr, log);
+        SKY_LOGE("[SkyRenderer] ОШИБКА ЛИНКОВКИ: %s\n", log);
+        return false;
+    }
+    SKY_LOGE("[SkyRenderer] Программа слинкована, m_prog=%d\n", m_prog);
     glDeleteShader(vs); glDeleteShader(fs);
 
-    // Генерирую полусферу (sky dome)
+    // Генерирую ПОЛНУЮ сферу (sky sphere) — чтобы закрыть горизонт
     const int RINGS = 16, SEGS = 32;
     struct V { float x, y, z; };
     std::vector<V> verts;
     std::vector<uint16_t> idx;
 
-    // Верхний колпак
+    // Полная сфера: от южного полюса до северного
     for (int r = 0; r <= RINGS; r++) {
-        float phi = (float)r / RINGS * 1.570796f; // 0..PI/2
+        float phi = (float)r / RINGS * 3.14159f; // 0..PI (полная сфера!)
         float sinP = std::sin(phi), cosP = std::cos(phi);
         for (int s = 0; s <= SEGS; s++) {
             float theta = (float)s / SEGS * 6.28318f;
@@ -206,30 +121,171 @@ bool SkyRenderer::init() {
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(V), nullptr);
     glBindVertexArray(0);
 
+    /* ---- Инициализация солнца как отдельного объекта ---- */
+    // Квад 4 вершины (x,y,u,v) + 6 индексов
+    struct SunVert { float x, y, u, v; };
+    static const SunVert sunVerts[4] = {
+        {-1, -1, 0, 0},
+        { 1, -1, 1, 0},
+        { 1,  1, 1, 1},
+        {-1,  1, 0, 1},
+    };
+    static const uint16_t sunIdx[6] = {0,1,2, 0,2,3};
+
+    glGenVertexArrays(1, &m_sunVao);
+    glGenBuffers(1, &m_sunVbo);
+    glBindVertexArray(m_sunVao);
+    glBindBuffer(GL_ARRAY_BUFFER, m_sunVbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(sunVerts), sunVerts, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(SunVert), nullptr);
+    glBindVertexArray(0);
+
+    // Шейдер для солнца
+    const char* sunVS =
+        "#version 330 core\n"
+        "layout(location=0) in vec4 aPosUV;\n"
+        "out vec2 vUV;\n"
+        "uniform mat4 uVP;\n"
+        "uniform vec3 uCenter;   // мировая позиция солнца\n"
+        "uniform vec3 uRight;    // правый вектор камеры\n"
+        "uniform vec3 uUp;       // верхний вектор камеры\n"
+        "uniform float uSize;    // размер диска\n"
+        "void main(){\n"
+        "    vUV = aPosUV.zw;\n"
+        "    vec3 worldPos = uCenter + aPosUV.x * uRight * uSize + aPosUV.y * uUp * uSize;\n"
+        "    gl_Position = uVP * vec4(worldPos, 1.0);\n"
+        "}\n";
+    const char* sunFS =
+        "#version 330 core\n"
+        "in vec2 vUV;\n"
+        "out vec4 fragColor;\n"
+        "uniform vec3 uColor;\n"
+        "void main(){\n"
+        "    vec2 c = vUV - 0.5;\n"
+        "    float d = length(c);\n"
+        "    // Мягкий диск с glow\n"
+        "    float core = 1.0 - smoothstep(0.35, 0.5, d);\n"
+        "    float glow = pow(1.0 - d, 3.0) * 0.6;\n"
+        "    float alpha = max(core, glow);\n"
+        "    fragColor = vec4(uColor * (1.0 + glow), alpha);\n"
+        "}\n";
+
+    auto compileShader = [](GLuint type, const char* src) -> GLuint {
+        GLuint s = glCreateShader(type);
+        glShaderSource(s, 1, &src, nullptr);
+        glCompileShader(s);
+        GLint ok; glGetShaderiv(s, GL_COMPILE_STATUS, &ok);
+        if (!ok) { char l[512]; glGetShaderInfoLog(s, 512, nullptr, l);
+            SKY_LOGE("[SkyRenderer] Sun shader compile error: %s\n", l);
+            return 0;
+        }
+        return s;
+    };
+
+    GLuint sunVS_sh = compileShader(GL_VERTEX_SHADER, sunVS);
+    GLuint sunFS_sh = compileShader(GL_FRAGMENT_SHADER, sunFS);
+    if (sunVS_sh && sunFS_sh) {
+        m_sunProg = glCreateProgram();
+        glAttachShader(m_sunProg, sunVS_sh);
+        glAttachShader(m_sunProg, sunFS_sh);
+        glLinkProgram(m_sunProg);
+        GLint sunLinked;
+        glGetProgramiv(m_sunProg, GL_LINK_STATUS, &sunLinked);
+        if (!sunLinked) {
+            char log[512];
+            glGetProgramInfoLog(m_sunProg, 512, nullptr, log);
+            SKY_LOGE("[SkyRenderer] Sun shader link error: %s\n", log);
+            m_sunProg = 0;
+        }
+        glDeleteShader(sunVS_sh);
+        glDeleteShader(sunFS_sh);
+    }
+
+    SKY_LOGE("[SkyRenderer] init УСПЕХ! VAO=%d VBO=%d idxCount=%d sunProg=%d\n", m_vao, m_vbo, m_idxCount, m_sunProg);
     return true;
 }
 
 void SkyRenderer::draw(float time, const float* viewMat, const float* projMat, float sunElevation) {
-    glDepthMask(GL_FALSE);
-    glDisable(GL_CULL_FACE);
-    glDisable(GL_DEPTH_TEST);
-
+    if (m_prog == 0 || m_vao == 0) {
+        SKY_LOGE("[SkyRenderer] draw ПЫТАЮСЬ рисовать но m_prog=%d m_vao=%d !!!\n", m_prog, m_vao);
+        return;
+    }
+    
     glUseProgram(m_prog);
     glUniform1f(glGetUniformLocation(m_prog, "uTime"), time);
     glUniform3f(glGetUniformLocation(m_prog, "uTopColor"), m_topR, m_topG, m_topB);
     glUniform3f(glGetUniformLocation(m_prog, "uHorizonColor"), m_horizonR, m_horizonG, m_horizonB);
     glUniform3f(glGetUniformLocation(m_prog, "uSunColor"), m_sunR, m_sunG, m_sunB);
+    glUniform3f(glGetUniformLocation(m_prog, "uSunDir"), m_sunDirX, m_sunDirY, m_sunDirZ);
     glUniform1f(glGetUniformLocation(m_prog, "uSunElevation"), sunElevation);
     glUniformMatrix4fv(glGetUniformLocation(m_prog, "uView"), 1, GL_FALSE, viewMat);
     glUniformMatrix4fv(glGetUniformLocation(m_prog, "uProj"), 1, GL_FALSE, projMat);
+
+    glDepthMask(GL_FALSE);
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_DEPTH_TEST);
 
     glBindVertexArray(m_vao);
     glDrawElements(GL_TRIANGLES, m_idxCount, GL_UNSIGNED_SHORT, nullptr);
     glBindVertexArray(0);
 
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR) {
+        SKY_LOGE("[SkyRenderer] OpenGL ошибка после draw: 0x%X\n", err);
+    }
+
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glDepthMask(GL_TRUE);
+}
+
+void SkyRenderer::drawSun(const float* projMat, const float* viewMat) {
+    if (m_sunProg == 0 || m_sunVao == 0) return;
+    if (m_sunDirY < -0.1f) return;
+
+    // Умножаем proj * view (с обнулённой трансляцией) для billboard
+    float vNoTrans[16];
+    for (int i = 0; i < 16; i++) vNoTrans[i] = viewMat[i];
+    vNoTrans[12] = 0; vNoTrans[13] = 0; vNoTrans[14] = 0;
+
+    float vp[16];
+    for (int c = 0; c < 4; c++)
+        for (int r = 0; r < 4; r++)
+            vp[c * 4 + r] = projMat[r] * vNoTrans[c*4] + projMat[4+r] * vNoTrans[c*4+1] +
+                            projMat[8+r] * vNoTrans[c*4+2] + projMat[12+r] * vNoTrans[c*4+3];
+
+    // Позиция солнца в мировом пространстве
+    float sunDist = 400.0f;
+    float sunX = m_sunDirX * sunDist;
+    float sunY = m_sunDirY * sunDist;
+    float sunZ = m_sunDirZ * sunDist;
+
+    // Right и Up из view матрицы
+    float rightX = viewMat[0], rightY = viewMat[1], rightZ = viewMat[2];
+    float upX = viewMat[4], upY = viewMat[5], upZ = viewMat[6];
+
+    // Размер солнца — побольше чтобы было видно
+    float sunSize = 25.0f;
+
+    glUseProgram(m_sunProg);
+    glUniformMatrix4fv(glGetUniformLocation(m_sunProg, "uVP"), 1, GL_FALSE, vp);
+    glUniform3f(glGetUniformLocation(m_sunProg, "uCenter"), sunX, sunY, sunZ);
+    glUniform3f(glGetUniformLocation(m_sunProg, "uRight"), rightX, rightY, rightZ);
+    glUniform3f(glGetUniformLocation(m_sunProg, "uUp"), upX, upY, upZ);
+    glUniform3f(glGetUniformLocation(m_sunProg, "uColor"), m_sunR, m_sunG, m_sunB);
+    glUniform1f(glGetUniformLocation(m_sunProg, "uSize"), sunSize);
+
+    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE); // аддитивное блендинг для свечения
+
+    glBindVertexArray(m_sunVao);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, nullptr);
+    glBindVertexArray(0);
+
+    glDisable(GL_BLEND);
+    glEnable(GL_DEPTH_TEST);
 }
 
 void SkyRenderer::shutdown() {
@@ -237,7 +293,11 @@ void SkyRenderer::shutdown() {
     if (m_vao) glDeleteVertexArrays(1, &m_vao);
     if (m_vbo) glDeleteBuffers(1, &m_vbo);
     if (m_ebo) glDeleteBuffers(1, &m_ebo);
+    if (m_sunProg) glDeleteProgram(m_sunProg);
+    if (m_sunVao) glDeleteVertexArrays(1, &m_sunVao);
+    if (m_sunVbo) glDeleteBuffers(1, &m_sunVbo);
     m_prog = 0; m_vao = 0; m_vbo = 0; m_ebo = 0;
+    m_sunProg = 0; m_sunVao = 0; m_sunVbo = 0;
 }
 
 } // namespace
