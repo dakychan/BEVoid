@@ -246,7 +246,7 @@ static int32_t handleInput(android_app*, AInputEvent* event) {
         int32_t keyCode = AKeyEvent_getKeyCode(event);
         int32_t action = AKeyEvent_getAction(event);
         g_androidGame->getCore().getInput().onKey(keyCode, action);
-        if (keyCode == AKEYCODE_BACK && action == AKEY_EVENT_ACTION_PRESS) {
+        if (keyCode == AKEYCODE_BACK && action == AKEY_EVENT_ACTION_DOWN) {
             g_running = false;
             return 1;
         }
