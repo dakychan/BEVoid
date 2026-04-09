@@ -50,7 +50,13 @@ static bool  g_mouseInputEnabled = true;
 static double g_mouseAccumX = 0;
 static double g_mouseAccumY = 0;
 
-Game::Game() { g_game = this; }
+Game::Game() {
+    g_game = this;
+#if defined(BEVOID_PLATFORM_ANDROID)
+    /* На Android m_api должен быть создан ДО вызова registerAppCallbacks */
+    m_api = std::make_unique<com::bevoid::aporia::system::ApiRender>();
+#endif
+}
 Game::~Game() { if (g_game == this) g_game = nullptr; }
 
 /* --- Public wrappers for Android --- */
@@ -79,7 +85,9 @@ int Game::run(int /*argc*/, char** /*argv*/) {
 }
 
 bool Game::initOpenGL() {
+#if !defined(BEVOID_PLATFORM_ANDROID)
     m_api = std::make_unique<com::bevoid::aporia::system::ApiRender>();
+#endif
     if (!m_api->create("BEVoid", 1280, 720)) {
         std::cerr << "[Game] ApiRender::create failed\n";
         return false;
