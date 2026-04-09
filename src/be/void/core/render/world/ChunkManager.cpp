@@ -91,8 +91,8 @@ void ChunkManager::buildChunk(int cx, int cz) {
     float h[G*G]{};
     for (int z=0; z<G; ++z)
     for (int x=0; x<G; ++x) {
-        float wx = (cx - PAD)*B + x;  // мировые координаты с паддингом
-        float wz = (cz - PAD)*B + z;
+        float wx = static_cast<float>((cx - PAD) * B + x);  // мировые координаты с паддингом
+        float wz = static_cast<float>((cz - PAD) * B + z);
         h[z*G + x] = m_biome.sample(wx, wz).height * MAX_HEIGHT;
     }
 
@@ -106,8 +106,8 @@ void ChunkManager::buildChunk(int cx, int cz) {
     for (int x = 0; x < VERT_G; ++x) {
         int i = z * VERT_G + x;
 
-        float wx = cx * B + x;
-        float wz = cz * B + z;
+        float wx = static_cast<float>(cx * B + x);
+        float wz = static_cast<float>(cz * B + z);
         auto bs = m_biome.sample(wx, wz);
         float hy = bs.height * MAX_HEIGHT;
 

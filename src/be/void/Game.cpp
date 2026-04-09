@@ -16,9 +16,19 @@
 
 #include "be/void/Game.h"
 
+/* Windows headers MUST come before GLFW to avoid APIENTRY redefinition */
+#if defined(BEVOID_PLATFORM_WINDOWS)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#endif
+
 /* GLFW — только для десктопа */
 #if !defined(BEVOID_PLATFORM_ANDROID)
+#ifndef GLFW_INCLUDE_NONE
 #define GLFW_INCLUDE_NONE
+#endif
 #include <GLFW/glfw3.h>
 #include <glad/glad.h>
 #else
@@ -29,13 +39,6 @@
 #include <iostream>
 #include <cmath>
 #include <chrono>
-
-#if defined(BEVOID_PLATFORM_WINDOWS)
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
-#endif
 
 namespace be::void_ {
 
@@ -235,84 +238,72 @@ int main(int argc, char** argv) {
 
 static be::void_::Game* g_androidGame = nullptr;
 static bool g_running = false;
-static bool g_hasWindow = false;
-static ANativeWindow* g_window = nullptr;
-
-static void handleCmd(android_app* app, int32_t cmd) {
-    switch (cmd) {
-        case APP_CMD_INIT_WINDOW:
-            g_window = app->window;
-            g_hasWindow = true;
-            break;
-        case APP_CMD_TERM_WINDOW: {
-            if (g_androidGame && g_androidGame->getApi()) {
-                auto* api = g_androidGame->getApi();
-                EGLDisplay dpy = reinterpret_cast<EGLDisplay>(api->getEGLDisplay());
-                EGLSurface surf = reinterpret_cast<EGLSurface>(api->getEGLSurface());
-                if (dpy && surf) {
-                    eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-                    eglDestroySurface(dpy, surf);
-                    api->setEGLSurface(nullptr);
-                }
-            }
-            g_window = nullptr;
-            g_hasWindow = false;
-            break;
-        }
-        case APP_CMD_DESTROY:
-            g_running = false;
-            break;
-    }
-}
 
 static int32_t handleInput(android_app*, AInputEvent* event) {
     if (!g_androidGame) return 0;
     int32_t type = AInputEvent_getType(event);
     if (type == AINPUT_EVENT_TYPE_KEY) {
-        g_androidGame->getCore().getInput().onKey(AKeyEvent_getKeyCode(event), AKeyEvent_getAction(event));
-        if (AKeyEvent_getKeyCode(event) == AKEYCODE_BACK && AKeyEvent_getAction(event) == AKEY_EVENT_ACTION_UP)
-            { g_running = false; return 1; }
+        int32_t keyCode = AKeyEvent_getKeyCode(event);
+        int32_t action = AKeyEvent_getAction(event);
+        g_androidGame->getCore().getInput().onKey(keyCode, action);
+        if (keyCode == AKEYCODE_BACK && action == AKEY_EVENT_ACTION_PRESS) {
+            g_running = false;
+            return 1;
+        }
         return 1;
     }
     if (type == AINPUT_EVENT_TYPE_MOTION) {
-        g_androidGame->getCore().getInput().onMouseMove(AMotionEvent_getX(event, 0) * 0.01f, AMotionEvent_getY(event, 0) * 0.01f);
+        float x = AMotionEvent_getX(event, 0);
+        float y = AMotionEvent_getY(event, 0);
+        g_androidGame->getCore().getInput().onMouseMove(x * 0.01f, y * 0.01f);
         return 1;
     }
     return 0;
 }
 
 extern "C" void android_main(struct android_app* app) {
+    ALOGI("=== BEVoid Android entry point ===");
+    
     be::void_::Game game;
     g_androidGame = &game;
     g_running = true;
-    app->onAppCmd = handleCmd;
+    
+    /* Привязываем APP_CMD callbacks до инициализации */
+    game.getApi()->registerAppCallbacks(app);
     app->onInputEvent = handleInput;
-    if (!game.doInitOpenGL()) { ALOGE("OpenGL failed"); return; }
-    if (!game.doInitCore())   { ALOGE("Core failed"); return; }
-    game.getApi()->setRenderCallback([](void*) { if (g_androidGame) g_androidGame->doRender(); }, nullptr);
+    
+    /* Инициализация */
+    if (!game.doInitOpenGL()) { ALOGE("OpenGL init failed"); return; }
+    if (!game.doInitCore())   { ALOGE("Core init failed"); return; }
+    
+    /* Render callback */
+    game.getApi()->setRenderCallback([](void*) {
+        if (g_androidGame) g_androidGame->doRender();
+    }, nullptr);
+    
+    /* Главный цикл */
+    ALOGI("Starting main loop");
     while (g_running) {
-        int events; struct android_poll_source* source;
-        while (ALooper_pollAll(g_hasWindow ? 0 : -1, nullptr, &events, (void**)&source) >= 0)
-            { if (source) source->process(app, source); }
-        if (g_hasWindow && g_window) {
-            auto* api = game.getApi();
-            EGLDisplay dpy = reinterpret_cast<EGLDisplay>(api->getEGLDisplay());
-            EGLSurface surf = reinterpret_cast<EGLSurface>(api->getEGLSurface());
-            EGLConfig* cfg = reinterpret_cast<EGLConfig*>(api->getEGLConfig());
-            EGLContext ctx = reinterpret_cast<EGLContext>(api->getEGLContext());
-            if (surf == EGL_NO_SURFACE && dpy && cfg && ctx) {
-                surf = eglCreateWindowSurface(dpy, *cfg, g_window, nullptr);
-                if (surf != EGL_NO_SURFACE && eglMakeCurrent(dpy, surf, surf, ctx)) {
-                    glViewport(0, 0, ANativeWindow_getWidth(g_window), ANativeWindow_getHeight(g_window));
-                    api->setEGLSurface(surf);
-                }
-            }
-            if (surf != EGL_NO_SURFACE) {
-                api->callRenderCallback();
-                eglSwapBuffers(dpy, surf);
+        int events;
+        struct android_poll_source* source;
+        
+        /* Блокируем только если нет окна, иначе не блокируем */
+        int timeoutMs = g_androidGame->getApi()->getHeight() > 0 ? 0 : -1;
+        
+        while (ALooper_pollAll(timeoutMs, nullptr, &events, (void**)&source) >= 0) {
+            if (source) {
+                source->process(app, source);
             }
         }
+        
+        /* Рендерим только если окно активно */
+        if (g_androidGame->getApi()->getHeight() > 0) {
+            game.getApi()->callRenderCallback();
+            game.getApi()->swapBuffers();
+        }
     }
+    
+    ALOGI("Shutting down");
     game.doShutdown();
     g_androidGame = nullptr;
 }

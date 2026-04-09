@@ -118,9 +118,17 @@ if(ANDROID)
 # Desktop: Windows
 # ============================================================
 elseif(WIN32)
+    # Copy .ico file to build directory for .rc file
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/assets/bevoid.ico
+        ${CMAKE_CURRENT_BINARY_DIR}/bevoid.ico
+        COPYONLY
+    )
+    
     add_executable(bevoid WIN32
         ${SOURCES_GAME} ${HEADERS_GAME}
         ${SOURCES_SYSTEM} ${HEADERS_SYSTEM}
+        src/assets/bevoid.rc
     )
 
     target_link_libraries(bevoid PRIVATE glfw glad user32)

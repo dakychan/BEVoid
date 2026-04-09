@@ -48,16 +48,19 @@ void Movement::update(float dt, physics::Physics& phys, float terrainHeight) {
     float targetCrouch = m_shift ? CROUCH_HEIGHT : 0.0f;
     m_crouchOffset += (targetCrouch - m_crouchOffset) * std::min(1.0f, CROUCH_SPEED * dt);
 
+    // Shift — замедление (красться)
+    float speedMul = m_shift ? SLOW_WALK_FACTOR : 1.0f;
+
     float cy = std::cos(m_yaw);
     float sy = std::sin(m_yaw);
     Vec3 forward = { -sy, 0, -cy };
     Vec3 right   = { -cy, 0, sy };
 
     Vec3 inputAccel = {0, 0, 0};
-    if (m_w) { inputAccel = inputAccel + forward * MOVE_ACCEL; }
-    if (m_s) { inputAccel = inputAccel - forward * MOVE_ACCEL; }
-    if (m_a) { inputAccel = inputAccel + right * MOVE_ACCEL; }
-    if (m_d) { inputAccel = inputAccel - right * MOVE_ACCEL; }
+    if (m_w) { inputAccel = inputAccel + forward * MOVE_ACCEL * speedMul; }
+    if (m_s) { inputAccel = inputAccel - forward * MOVE_ACCEL * speedMul; }
+    if (m_a) { inputAccel = inputAccel + right * MOVE_ACCEL * speedMul; }
+    if (m_d) { inputAccel = inputAccel - right * MOVE_ACCEL * speedMul; }
 
     phys.step(m_state, inputAccel, dt, m_space, terrainHeight);
 }

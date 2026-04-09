@@ -20,8 +20,18 @@
 
 #include <cstdint>
 #include <cmath>
+#include <string>
 
 namespace be::void_::physics {
+
+/* Тип активного эвента */
+enum EventType {
+    EventType_None = 0,
+    EventType_WhiteNight,       /* Солнце не уходит за горизонт — светло всю ночь */
+    EventType_PolarNight,       /* Солнце не восходит — темнота весь день */
+    EventType_Eclipse,          /* Затмение — резко темнеет днём */
+    EventType_Aurora,           /* Полярное сияние — яркие цвета в небе */
+};
 
 struct SunMoonState {
     /* Солнце */
@@ -43,6 +53,11 @@ struct SunMoonState {
     /* Время */
     float dayProgress;          /* 0..1 (полночь→полночь) */
     bool  isDaytime;
+
+    /* Эвент */
+    EventType activeEvent;
+    const char* eventName;      /* nullptr если нет активного эвента */
+    float eventProgress;        /* 0..1 прогресс текущего эвента */
 };
 
 class Cycles {
@@ -78,6 +93,22 @@ private:
 
     /* Фазы луны (цикл ~29.5 дней) */
     float m_moonCycle = 29.5f * DAY_LENGTH;
+
+    /* Смещение стартовой позиции солнца (сдвиг на 2 радиана за каждый новый день) */
+    float m_dayStartOffset = 0.0f;
+    static constexpr float DAY_SHIFT = 2.0f;  /* сдвиг восхода за каждый цикл дня */
+
+    /* --- Система редких эвентов --- */
+    uint32_t m_dayCounter = 0;
+    uint32_t m_eventThreshold = 0;   /* через сколько дней следующий эвент */
+    EventType m_activeEvent = EventType_None;
+    float m_eventDuration = 0.0f;    /* сколько длится эвент в днях */
+    float m_eventTimer = 0.0f;       /* сколько эвент уже идёт */
+
+    void pickNextEventThreshold();
+    void triggerEvent(EventType type, float durationDays);
+    void updateActiveEvent(float dtDays);
+    void applyEventEffects();
 };
 
 } // namespace be::void_::physics

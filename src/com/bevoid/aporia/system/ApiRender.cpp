@@ -20,7 +20,18 @@
 
 /* --- Desktop: GLFW + OpenGL --- */
 #if !defined(BEVOID_PLATFORM_ANDROID)
+
+/* Windows headers MUST come before GLFW to avoid APIENTRY redefinition */
+#if defined(BEVOID_PLATFORM_WINDOWS)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#endif
+
+#ifndef GLFW_INCLUDE_NONE
 #define GLFW_INCLUDE_NONE
+#endif
 #include <GLFW/glfw3.h>
 #include <glad/glad.h>
 
@@ -53,6 +64,71 @@ bool ApiRender::create(const char* title, int width, int height) {
     glfwSwapInterval(1);
 
     glfwSetWindowUserPointer(m_window, this);
+
+    // Set window icon from embedded resource (Windows)
+    #ifdef BEVOID_PLATFORM_WINDOWS
+    {
+        // Load icon from .exe resource
+        HICON hIcon = (HICON)LoadImage(
+            GetModuleHandle(NULL),
+            MAKEINTRESOURCE(101),  // IDI_ICON1 from .rc file
+            IMAGE_ICON,
+            32, 32,
+            LR_DEFAULTCOLOR
+        );
+        
+        if (hIcon) {
+            // Convert HICON to GLFWimage format (32x32 RGBA)
+            HDC hdc = GetDC(NULL);
+            HDC hdcMem = CreateCompatibleDC(hdc);
+            
+            BITMAPINFO bi = {0};
+            bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+            bi.bmiHeader.biWidth = 32;
+            bi.bmiHeader.biHeight = -32;  // Top-down
+            bi.bmiHeader.biPlanes = 1;
+            bi.bmiHeader.biBitCount = 32;
+            bi.bmiHeader.biCompression = BI_RGB;
+            
+            unsigned char* pixels = nullptr;
+            HBITMAP hbmp = CreateDIBSection(hdcMem, &bi, DIB_RGB_COLORS, (void**)&pixels, NULL, 0);
+            
+            if (hbmp && pixels) {
+                HGDIOBJ hOldBmp = SelectObject(hdcMem, hbmp);
+                
+                // Draw icon to bitmap
+                DrawIconEx(hdcMem, 0, 0, hIcon, 32, 32, 0, NULL, DI_NORMAL);
+                
+                // Copy pixels before cleanup (GDI owns the memory after CreateDIBSection)
+                unsigned char* iconData = new unsigned char[32 * 32 * 4];
+                memcpy(iconData, pixels, 32 * 32 * 4);
+                
+                // Convert BGRA to RGBA
+                for (int i = 0; i < 32 * 32; i++) {
+                    unsigned char temp = iconData[i * 4];
+                    iconData[i * 4] = iconData[i * 4 + 2];     // R <-> B
+                    iconData[i * 4 + 2] = temp;
+                }
+                
+                GLFWimage icon;
+                icon.width = 32;
+                icon.height = 32;
+                icon.pixels = iconData;
+                glfwSetWindowIcon(m_window, 1, &icon);
+                
+                // Cleanup GDI objects (GDI frees 'pixels' when hbmp is deleted)
+                SelectObject(hdcMem, hOldBmp);
+                DeleteObject(hbmp);
+                // GLFW copies the icon data internally, so we can free ours
+                delete[] iconData;
+            }
+            
+            DeleteDC(hdcMem);
+            ReleaseDC(NULL, hdc);
+            DestroyIcon(hIcon);
+        }
+    }
+    #endif
 
     glfwSetWindowRefreshCallback(m_window, [](GLFWwindow* win) {
         ApiRender* self = reinterpret_cast<ApiRender*>(glfwGetWindowUserPointer(win));
@@ -132,12 +208,16 @@ int32_t ApiRender::getHeight() const {
 
 #define LOG_TAG "ApiRender"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+#define LOGW(...) __android_log_print(ANDROID_LOG_WARN, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 namespace com::bevoid::aporia::system {
 
 /* Глобальный указатель для статических callbacks */
 static ApiRender* g_apiRender = nullptr;
+
+/* Forward declaration */
+static void handleCmd(android_app* app, int32_t cmd);
 
 struct ApiRender::AndroidState {
     ANativeActivity* activity = nullptr;
@@ -170,24 +250,69 @@ static void handleCmd(android_app* app, int32_t cmd) {
                 state->height = ANativeWindow_getHeight(state->window);
                 state->hasWindow = true;
                 LOGI("Window initialized: %dx%d", state->width, state->height);
+
+                /* --- Создаём EGL surface для окна --- */
+                if (state->eglDisplay != EGL_NO_DISPLAY && state->eglContext != EGL_NO_CONTEXT) {
+                    EGLint surfAttrs[] = { EGL_NONE };
+                    state->eglSurface = eglCreateWindowSurface(
+                        state->eglDisplay, state->eglConfig, state->window, surfAttrs);
+                    
+                    if (state->eglSurface == EGL_NO_SURFACE) {
+                        LOGE("eglCreateWindowSurface failed: 0x%x", eglGetError());
+                    } else {
+                        /* Делаем контекст активным для реального окна */
+                        if (!eglMakeCurrent(state->eglDisplay, state->eglSurface,
+                                           state->eglSurface, state->eglContext)) {
+                            LOGE("eglMakeCurrent(window) failed: 0x%x", eglGetError());
+                        } else {
+                            LOGI("EGL surface created and context made current");
+                            /* Вызываем рендер callback сразу после инициализации */
+                            g_apiRender->callRenderCallback();
+                            eglSwapBuffers(state->eglDisplay, state->eglSurface);
+                        }
+                    }
+                }
             }
             break;
+
         case APP_CMD_TERM_WINDOW:
             if (state->eglSurface != EGL_NO_SURFACE) {
                 eglMakeCurrent(state->eglDisplay, EGL_NO_SURFACE,
                                EGL_NO_SURFACE, EGL_NO_CONTEXT);
                 eglDestroySurface(state->eglDisplay, state->eglSurface);
                 state->eglSurface = EGL_NO_SURFACE;
+                LOGI("EGL surface destroyed");
             }
             state->window = nullptr;
             state->hasWindow = false;
             LOGI("Window terminated");
             break;
+
         case APP_CMD_GAINED_FOCUS:
             state->hasFocus = true;
+            LOGI("Focus gained");
             break;
+
         case APP_CMD_LOST_FOCUS:
             state->hasFocus = false;
+            LOGI("Focus lost");
+            break;
+
+        case APP_CMD_WINDOW_RESIZED:
+            if (state->window) {
+                state->width  = ANativeWindow_getWidth(state->window);
+                state->height = ANativeWindow_getHeight(state->window);
+                LOGI("Window resized: %dx%d", state->width, state->height);
+                glViewport(0, 0, state->width, state->height);
+            }
+            break;
+
+        case APP_CMD_CONFIG_CHANGED:
+            if (state->window) {
+                state->width  = ANativeWindow_getWidth(state->window);
+                state->height = ANativeWindow_getHeight(state->window);
+                LOGI("Config changed: %dx%d", state->width, state->height);
+            }
             break;
     }
 }
@@ -295,12 +420,40 @@ void ApiRender::swapBuffers() {
     auto* state = m_androidState.get();
     if (state->eglDisplay != EGL_NO_DISPLAY &&
         state->eglSurface != EGL_NO_SURFACE) {
-        eglSwapBuffers(state->eglDisplay, state->eglSurface);
+        if (!eglSwapBuffers(state->eglDisplay, state->eglSurface)) {
+            EGLint error = eglGetError();
+            if (error == EGL_BAD_SURFACE || error == EGL_BAD_NATIVE_WINDOW) {
+                LOGW("eglSwapBuffers failed (surface invalid), recreating: 0x%x", error);
+                /* Попробуем пересоздать surface */
+                eglMakeCurrent(state->eglDisplay, EGL_NO_SURFACE,
+                               EGL_NO_SURFACE, EGL_NO_CONTEXT);
+                if (state->eglSurface != EGL_NO_SURFACE) {
+                    eglDestroySurface(state->eglDisplay, state->eglSurface);
+                    state->eglSurface = EGL_NO_SURFACE;
+                }
+                if (state->window && state->eglContext != EGL_NO_CONTEXT) {
+                    EGLint surfAttrs[] = { EGL_NONE };
+                    state->eglSurface = eglCreateWindowSurface(
+                        state->eglDisplay, state->eglConfig, state->window, surfAttrs);
+                    if (state->eglSurface != EGL_NO_SURFACE) {
+                        eglMakeCurrent(state->eglDisplay, state->eglSurface,
+                                       state->eglSurface, state->eglContext);
+                        LOGI("EGL surface recreated");
+                    }
+                }
+            }
+        }
     }
 }
 
 void ApiRender::pollEvents() {
     /* На Android события обрабатываются в android_main */
+}
+
+void ApiRender::registerAppCallbacks(android_app* app) {
+    m_androidState->app = app;
+    app->onAppCmd = handleCmd;
+    LOGI("APP_CMD callbacks registered");
 }
 
 int32_t ApiRender::getWidth() const {

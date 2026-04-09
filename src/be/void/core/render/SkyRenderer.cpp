@@ -97,10 +97,10 @@ bool SkyRenderer::init() {
 
     for (int r = 0; r < RINGS; r++) {
         for (int s = 0; s < SEGS; s++) {
-            uint16_t a = r * (SEGS + 1) + s;
-            uint16_t b = a + 1;
-            uint16_t c = a + SEGS + 1;
-            uint16_t d = c + 1;
+            uint16_t a = static_cast<uint16_t>(r * (SEGS + 1) + s);
+            uint16_t b = static_cast<uint16_t>(a + 1);
+            uint16_t c = static_cast<uint16_t>(a + SEGS + 1);
+            uint16_t d = static_cast<uint16_t>(c + 1);
             idx.push_back(a); idx.push_back(c); idx.push_back(b);
             idx.push_back(b); idx.push_back(c); idx.push_back(d);
         }

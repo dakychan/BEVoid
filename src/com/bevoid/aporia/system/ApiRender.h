@@ -23,10 +23,7 @@
 #include "system/OsManager.h"
 #include <memory>
 
-#if defined(BEVOID_PLATFORM_ANDROID)
-    struct android_app;
-#endif
-
+struct android_app;  /* Forward for Android stub */
 struct GLFWwindow;
 
 namespace com::bevoid::aporia::system {
@@ -60,6 +57,9 @@ public:
     void callRenderCallback() {
         if (m_renderCallback) m_renderCallback(m_renderUserData);
     }
+
+    /* Stub on desktop — only used on Android */
+    void registerAppCallbacks(struct android_app*) {}
 
 private:
     OsManager   m_osManager;
@@ -101,6 +101,9 @@ public:
     void* getEGLContext() const;
     void* getEGLConfig() const;
     void  setEGLSurface(void* surface);
+
+    /* Register APP_CMD callbacks — call from android_main */
+    void  registerAppCallbacks(struct android_app* app);
 
     void setRenderCallback(void (*callback)(void* userData), void* userData) {
         m_renderCallback = callback;

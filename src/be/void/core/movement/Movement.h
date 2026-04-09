@@ -53,6 +53,7 @@ private:
     static constexpr float MOUSE_SENS = 0.0005f;
     static constexpr float CROUCH_HEIGHT = 1.2f;
     static constexpr float CROUCH_SPEED = 5.0f;
+    static constexpr float SLOW_WALK_FACTOR = 0.5f;  // Shift = скорость / 2
 };
 
 } // namespace be::void_::core::movement
