@@ -42,8 +42,7 @@ bool Core::init() {
         return false;
     }
     if (!m_render.initSky()) {
-        LOGE("[Core] Failed to init sky\n");
-        return false;
+        LOGI("[Core] WARNING: Sky init failed, sky will be disabled\n");
     }
     if (!m_render.initChunks()) {
         LOGE("[Core] Failed to init chunks\n");

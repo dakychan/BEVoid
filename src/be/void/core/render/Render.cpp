@@ -65,6 +65,7 @@ static const char* A_FRAG =
 "uniform vec3 uSunDir;\n"
 "uniform vec3 uSunColor;\n"
 "uniform vec3 uSkyColor;\n"
+"uniform vec3 uHorizonColor;\n"
 "uniform float uAmbient;\n"
 "uniform vec3 uCamPos;\n"
 "void main() {\n"
@@ -73,15 +74,14 @@ static const char* A_FRAG =
 "    vec3 lighting = uAmbient * uSkyColor + diff * uSunColor;\n"
 "    vec3 result = Color * lighting;\n"
 "    float dist = length(FragPos - uCamPos);\n"
-"    float fog = clamp((dist - 40.0) / 100.0, 0.0, 1.0);\n"
+"    float fog = clamp((dist - 80.0) / 200.0, 0.0, 1.0);\n"
 "    fog = fog * fog * (3.0 - 2.0 * fog);\n"
 "    vec3 camDir = normalize(FragPos - uCamPos);\n"
 "    float h = camDir.y;\n"
-"    vec3 zenith = vec3(0.25, 0.45, 0.90);\n"
-"    vec3 horizon = mix(vec3(0.65, 0.78, 0.92), uSkyColor, 0.5);\n"
 "    float t = pow(max(h, 0.0), 0.4);\n"
-"    vec3 sky = mix(horizon, zenith, t);\n"
-"    result = mix(result, sky, fog);\n"
+"    vec3 skyGrad = mix(uHorizonColor, uSkyColor, t);\n"
+"    skyGrad = mix(skyGrad, uSunColor, 0.15);\n"
+"    result = mix(result, skyGrad, fog);\n"
 "    fragColor = vec4(result, 1.0);\n"
 "}\n";
 
@@ -115,6 +115,7 @@ static const char* D_FRAG =
 "uniform vec3 uSunDir;\n"
 "uniform vec3 uSunColor;\n"
 "uniform vec3 uSkyColor;\n"
+"uniform vec3 uHorizonColor;\n"
 "uniform float uAmbient;\n"
 "uniform vec3 uCamPos;\n"
 "void main() {\n"
@@ -123,15 +124,14 @@ static const char* D_FRAG =
 "    vec3 lighting = uAmbient * uSkyColor + diff * uSunColor;\n"
 "    vec3 result = Color * lighting;\n"
 "    float dist = length(FragPos - uCamPos);\n"
-"    float fog = clamp((dist - 40.0) / 100.0, 0.0, 1.0);\n"
+"    float fog = clamp((dist - 80.0) / 200.0, 0.0, 1.0);\n"
 "    fog = fog * fog * (3.0 - 2.0 * fog);\n"
 "    vec3 camDir = normalize(FragPos - uCamPos);\n"
 "    float h = camDir.y;\n"
-"    vec3 zenith = vec3(0.25, 0.45, 0.90);\n"
-"    vec3 horizon = mix(vec3(0.65, 0.78, 0.92), uSkyColor, 0.5);\n"
 "    float t = pow(max(h, 0.0), 0.4);\n"
-"    vec3 sky = mix(horizon, zenith, t);\n"
-"    result = mix(result, sky, fog);\n"
+"    vec3 skyGrad = mix(uHorizonColor, uSkyColor, t);\n"
+"    skyGrad = mix(skyGrad, uSunColor, 0.15);\n"
+"    result = mix(result, skyGrad, fog);\n"
 "    fragColor = vec4(result, 1.0);\n"
 "}\n";
 #endif
@@ -254,6 +254,7 @@ bool Render::initShaders() {
     m_uSunDir   = glGetUniformLocation(m_program, "uSunDir");
     m_uSunColor = glGetUniformLocation(m_program, "uSunColor");
     m_uSkyColor = glGetUniformLocation(m_program, "uSkyColor");
+    m_uHorizonColor = glGetUniformLocation(m_program, "uHorizonColor");
     m_uAmbient  = glGetUniformLocation(m_program, "uAmbient");
 
     LOGI("[Render] Terrain shaders OK\n");
@@ -294,7 +295,7 @@ void Render::draw(float time, const Vec3& camPos, float yaw, float pitch, int wi
 
     float aspect = winWidth > 0 && winHeight > 0 ? (float)winWidth / (float)winHeight : 1.777f;
     float projMat[16];
-    mat4Perspective(70.0f * 3.14159f / 180.0f, aspect, 0.01f, 1000.0f, projMat);
+    mat4Perspective(70.0f * 3.14159f / 180.0f, aspect, 0.01f, 2000.0f, projMat);
 
     glClearColor(st.skyR, st.skyG, st.skyB, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -321,6 +322,7 @@ void Render::draw(float time, const Vec3& camPos, float yaw, float pitch, int wi
     glUniform3f(m_uSunDir, st.sunX, st.sunY, st.sunZ);
     glUniform3f(m_uSunColor, st.sunColorR, st.sunColorG, st.sunColorB);
     glUniform3f(m_uSkyColor, st.fogR, st.fogG, st.fogB);
+    glUniform3f(m_uHorizonColor, st.horizonR, st.horizonG, st.horizonB);
     glUniform1f(m_uAmbient, st.ambientIntensity);
 
     glUniformMatrix4fv(m_uView, 1, GL_FALSE, viewMat);

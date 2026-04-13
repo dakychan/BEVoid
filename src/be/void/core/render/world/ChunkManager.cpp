@@ -158,8 +158,6 @@ void ChunkManager::buildChunk(int cx, int cz) {
     auto chunk = std::make_unique<Chunk>(cx, cz);
     chunk->load(mesh);
     m_chunks[Key{cx,cz}] = std::move(chunk);
-    LOGI("[ChunkManager] Built chunk (%d,%d): %d verts, %d idx\n",
-         cx, cz, (int)mesh.verts.size(), (int)mesh.idx.size());
 }
 
 void ChunkManager::flushPending() {

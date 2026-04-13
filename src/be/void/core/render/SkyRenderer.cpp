@@ -15,10 +15,12 @@
 
 #if defined(BEVOID_PLATFORM_ANDROID)
     #include <android/log.h>
+    #define SKY_LOGI(...) __android_log_print(ANDROID_LOG_INFO, "BEVoid", __VA_ARGS__)
     #define SKY_LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "BEVoid", __VA_ARGS__)
 #else
     #include <cstdio>
-    #define SKY_LOGE(...) std::fprintf(stderr, __VA_ARGS__)
+    #define SKY_LOGI(...) std::printf(__VA_ARGS__)
+    #define SKY_LOGE(...) std::printf(__VA_ARGS__)
 #endif
 
 namespace be::void_::core::render {
@@ -33,17 +35,73 @@ static std::string loadSkyShader(const std::string& path) {
 bool SkyRenderer::init() {
     std::string vsSrc = loadSkyShader("shaders/sky.vert");
     std::string fsSrc = loadSkyShader("shaders/sky.frag");
-    
-    if (vsSrc.empty()) {
-        SKY_LOGE("[SkyRenderer] ERROR: shaders sky.vert не найден!\n");
-        return false;
+
+    static const char* FALLBACK_VS =
+        "#version 330 core\n"
+        "layout(location = 0) in vec3 aPos;\n"
+        "out vec3 vDir;\n"
+        "out vec3 vWorldPos;\n"
+        "uniform mat4 uView;\n"
+        "uniform mat4 uProj;\n"
+        "uniform vec3 uCamWorldPos;\n"
+        "void main() {\n"
+        "    vDir = normalize(aPos);\n"
+        "    vWorldPos = uCamWorldPos + aPos * 500.0;\n"
+        "    gl_Position = uProj * mat4(mat3(uView)) * vec4(aPos * 500.0, 1.0);\n"
+        "    gl_Position.z = gl_Position.w * 0.999;\n"
+        "}\n";
+
+    static const char* FALLBACK_FS =
+        "#version 330 core\n"
+        "in vec3 vDir;\n"
+        "in vec3 vWorldPos;\n"
+        "out vec4 fragColor;\n"
+        "uniform float uTime;\n"
+        "uniform vec3 uTopColor;\n"
+        "uniform vec3 uHorizonColor;\n"
+        "uniform vec3 uSunColor;\n"
+        "uniform vec3 uSunDir;\n"
+        "uniform float uSunElevation;\n"
+        "uniform vec3 uMoonColor;\n"
+        "uniform vec3 uMoonDir;\n"
+        "uniform vec3 uCamWorldPos;\n"
+        "float hash2(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}\n"
+        "float noise2D(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hash2(i),hash2(i+vec2(1,0)),f.x),mix(hash2(i+vec2(0,1)),hash2(i+vec2(1,1)),f.x),f.y);}\n"
+        "float fbm2(vec2 p){float v=0.0,a=0.5;for(int i=0;i<3;i++){v+=noise2D(p)*a;p*=2.0;a*=0.5;}return v;}\n"
+        "void main() {\n"
+        "    vec3 dir = normalize(vDir);\n"
+        "    float h = dir.y;\n"
+        "    float t = pow(max(h, 0.0), 0.45);\n"
+        "    vec3 sky = mix(uHorizonColor, uTopColor, t);\n"
+        "    float sdot = dot(dir, uSunDir);\n"
+        "    float sunGlow = smoothstep(-0.3, 0.1, uSunElevation);\n"
+        "    sky = mix(sky, uSunColor, pow(max(sdot, 0.0), 4.0) * 0.3 * sunGlow);\n"
+        "    sky += uSunColor * smoothstep(0.96, 1.0, max(sdot, 0.0)) * 3.0 * sunGlow;\n"
+        "    float belowGlow = smoothstep(0.0, -0.3, uSunElevation);\n"
+        "    sky += uSunColor * pow(max(sdot, 0.0), 2.0) * 0.1 * belowGlow;\n"
+        "    float moonF = smoothstep(0.0, -0.25, uSunElevation);\n"
+        "    float mdot = dot(dir, uMoonDir);\n"
+        "    if (moonF > 0.01) {\n"
+        "        float ma = acos(clamp(mdot, -1.0, 1.0));\n"
+        "        vec2 muv = dir.xy / max(mdot, 0.001);\n"
+        "        float surf = smoothstep(0.35, 0.65, fbm2(muv * 8.0));\n"
+        "        float md = (1.0 - smoothstep(0.024, 0.033, ma)) * surf;\n"
+        "        sky += uMoonColor * 1.2 * (md * 1.5 + pow(max(mdot, 0.0), 32.0) * 0.08) * moonF;\n"
+        "    }\n"
+        "    fragColor = vec4(sky, 1.0);\n"
+        "}\n";
+
+    const char* vs = FALLBACK_VS;
+    const char* fs = FALLBACK_FS;
+    std::string vsStr, fsStr;
+
+    if (!vsSrc.empty() && !fsSrc.empty()) {
+        SKY_LOGI("[SkyRenderer] Shader files loaded, compiling...\n");
+        vsStr = vsSrc; fsStr = fsSrc;
+        vs = vsStr.c_str(); fs = fsStr.c_str();
+    } else {
+        SKY_LOGI("[SkyRenderer] Shader files not found, using fallback\n");
     }
-    if (fsSrc.empty()) {
-        SKY_LOGE("[SkyRenderer] ERROR: shaders sky.frag не найден!\n");
-        return false;
-    }
-    
-    SKY_LOGE("[SkyRenderer] Шейдеры загружены, компилю...\n");
     
     auto compile = [](GLuint type, const char* src) -> GLuint {
         GLuint s = glCreateShader(type);
@@ -51,33 +109,33 @@ bool SkyRenderer::init() {
         glCompileShader(s);
         GLint ok; glGetShaderiv(s, GL_COMPILE_STATUS, &ok);
         if (!ok) { char l[512]; glGetShaderInfoLog(s, 512, nullptr, l); 
-            SKY_LOGE("[SkyRenderer] Compile error: %s\n", l);
+            SKY_LOGI("[SkyRenderer] Compile error: %s\n", l);
             return 0; 
         }
         return s;
     };
 
-    GLuint vs = compile(GL_VERTEX_SHADER, vsSrc.c_str());
-    GLuint fs = compile(GL_FRAGMENT_SHADER, fsSrc.c_str());
-    if (!vs || !fs) {
-        SKY_LOGE("[SkyRenderer] ОШИБКА КОМПИЛЯЦИИ! vs=%d fs=%d\n", vs, fs);
+    GLuint vsSh = compile(GL_VERTEX_SHADER, vs);
+    GLuint fsSh = compile(GL_FRAGMENT_SHADER, fs);
+    if (!vsSh || !fsSh) {
+        SKY_LOGI("[SkyRenderer] COMPILE FAILED! vs=%d fs=%d\n", vsSh, fsSh);
         return false;
     }
-    SKY_LOGE("[SkyRenderer] Шейдеры скомпилены OK\n");
+    SKY_LOGI("[SkyRenderer] Shaders compiled OK\n");
 
     m_prog = glCreateProgram();
-    glAttachShader(m_prog, vs); glAttachShader(m_prog, fs);
+    glAttachShader(m_prog, vsSh); glAttachShader(m_prog, fsSh);
     glLinkProgram(m_prog);
     GLint linked;
     glGetProgramiv(m_prog, GL_LINK_STATUS, &linked);
     if (!linked) {
         char log[512];
         glGetProgramInfoLog(m_prog, 512, nullptr, log);
-        SKY_LOGE("[SkyRenderer] ОШИБКА ЛИНКОВКИ: %s\n", log);
+        SKY_LOGI("[SkyRenderer] LINK ERROR: %s\n", log);
         return false;
     }
-    SKY_LOGE("[SkyRenderer] Программа слинкована, m_prog=%d\n", m_prog);
-    glDeleteShader(vs); glDeleteShader(fs);
+    SKY_LOGI("[SkyRenderer] Program linked, m_prog=%d\n", m_prog);
+    glDeleteShader(vsSh); glDeleteShader(fsSh);
 
     // Генерирую ПОЛНУЮ сферу (sky sphere) — чтобы закрыть горизонт
     const int RINGS = 16, SEGS = 32;
@@ -177,7 +235,7 @@ bool SkyRenderer::init() {
         glCompileShader(s);
         GLint ok; glGetShaderiv(s, GL_COMPILE_STATUS, &ok);
         if (!ok) { char l[512]; glGetShaderInfoLog(s, 512, nullptr, l);
-            SKY_LOGE("[SkyRenderer] Sun shader compile error: %s\n", l);
+            SKY_LOGI("[SkyRenderer] Sun shader compile error: %s\n", l);
             return 0;
         }
         return s;
@@ -195,14 +253,14 @@ bool SkyRenderer::init() {
         if (!sunLinked) {
             char log[512];
             glGetProgramInfoLog(m_sunProg, 512, nullptr, log);
-            SKY_LOGE("[SkyRenderer] Sun shader link error: %s\n", log);
+            SKY_LOGI("[SkyRenderer] Sun shader link error: %s\n", log);
             m_sunProg = 0;
         }
         glDeleteShader(sunVS_sh);
         glDeleteShader(sunFS_sh);
     }
 
-    SKY_LOGE("[SkyRenderer] init УСПЕХ! VAO=%d VBO=%d idxCount=%d sunProg=%d\n", m_vao, m_vbo, m_idxCount, m_sunProg);
+    SKY_LOGI("[SkyRenderer] init OK! VAO=%d VBO=%d idxCount=%d sunProg=%d\n", m_vao, m_vbo, m_idxCount, m_sunProg);
     return true;
 }
 
@@ -212,7 +270,7 @@ void SkyRenderer::draw(float time, const float* viewMat, const float* projMat, f
 
 void SkyRenderer::drawWithCamPos(float time, const float* viewMat, const float* projMat, float sunElevation, float camX, float camY, float camZ) {
     if (m_prog == 0 || m_vao == 0) {
-        SKY_LOGE("[SkyRenderer] draw ПЫТАЮСЬ рисовать но m_prog=%d m_vao=%d !!!\n", m_prog, m_vao);
+        SKY_LOGI("[SkyRenderer] draw SKIP: m_prog=%d m_vao=%d\n", m_prog, m_vao);
         return;
     }
 

@@ -56,6 +56,7 @@ private:
     GLint  m_uSunDir   = -1;
     GLint  m_uSunColor = -1;
     GLint  m_uSkyColor = -1;
+    GLint  m_uHorizonColor = -1;
     GLint  m_uAmbient  = -1;
 
     world::ChunkManager m_chunkManager;

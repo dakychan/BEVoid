@@ -26,6 +26,13 @@
 
 namespace be::void_::physics {
 
+static float smoothstepC(float edge0, float edge1, float x) {
+    float t = (x - edge0) / (edge1 - edge0);
+    if (t < 0.0f) t = 0.0f;
+    if (t > 1.0f) t = 1.0f;
+    return t * t * (3.0f - 2.0f * t);
+}
+
 Cycles::Cycles() {
     std::srand(static_cast<uint32_t>(std::time(nullptr)));
     pickNextEventThreshold();
@@ -76,8 +83,6 @@ void Cycles::update(float deltaTime) {
 
     m_state.dayProgress = m_timeOfDay / DAY_LENGTH;
 
-    /* Угол солнца: непрерывное вращение с дневным сдвигом.
-     * -90° = восход на востоке, 0° = горизонт, 90° = зенит, 180° = закат, 270° = полночь */
     float dayAngle = m_state.dayProgress * 2.0f * 3.14159f;
     float totalAngle = m_dayStartOffset + dayAngle;
     float hourAngle = totalAngle * 180.0f / 3.14159f - 90.0f;
@@ -95,61 +100,44 @@ void Cycles::update(float deltaTime) {
 void Cycles::calcSun(float angleDeg) {
     float rad = angleDeg * 3.14159f / 180.0f;
 
-    /* Солнце движется по кругу в плоскости X-Y, Z фиксирован */
     m_state.sunX = std::cos(rad);
     m_state.sunY = std::sin(rad);
     m_state.sunZ = 0.3f;
 
-    /* Нормализация */
     float len = std::sqrt(m_state.sunX*m_state.sunX + m_state.sunY*m_state.sunY + m_state.sunZ*m_state.sunZ);
     if (len > 0.001f) {
         m_state.sunX /= len; m_state.sunY /= len; m_state.sunZ /= len;
     }
 
-    /* Интенсивность: sunY > 0 = над горизонтом, < 0 = под горизонтом */
-    m_state.sunIntensity = std::max(0.0f, m_state.sunY);
+    float y = m_state.sunY;
 
-    /* --- Плавные переходы цвета солнца --- */
-    float sunYNorm = m_state.sunY;  /* -1..1 */
+    m_state.sunIntensity = smoothstepC(-0.15f, 0.1f, y);
 
-    if (sunYNorm > 0.35f) {
-        /* Полный день — чистый белый */
+    if (y > 0.3f) {
         m_state.sunColorR = 1.0f;
         m_state.sunColorG = 0.95f;
         m_state.sunColorB = 0.85f;
-    } else if (sunYNorm > 0.15f) {
-        /* День — тёплый жёлтый */
-        float t = (sunYNorm - 0.15f) / 0.2f;
+    } else if (y > 0.0f) {
+        float t = y / 0.3f;
         m_state.sunColorR = 1.0f;
-        m_state.sunColorG = 0.75f + 0.20f * t;
-        m_state.sunColorB = 0.45f + 0.40f * t;
-    } else if (sunYNorm > 0.02f) {
-        /* Закат/рассвет — яркий оранжево-розовый */
-        float t = sunYNorm / 0.13f;
-        m_state.sunColorR = 1.0f;
-        m_state.sunColorG = 0.30f + 0.45f * t;
-        m_state.sunColorB = 0.10f + 0.35f * t;
-    } else if (sunYNorm > -0.05f) {
-        /* Солнце только ушло за горизонт — тёмно-красное свечение */
-        float t = 1.0f - (sunYNorm + 0.05f) / 0.07f;  /* 1 → 0 */
-        m_state.sunColorR = 0.8f + 0.2f * t;
-        m_state.sunColorG = 0.15f + 0.15f * t;
-        m_state.sunColorB = 0.05f + 0.05f * t;
-        m_state.sunIntensity = 0.05f * t;
+        m_state.sunColorG = 0.45f + 0.50f * t;
+        m_state.sunColorB = 0.10f + 0.75f * t;
+    } else if (y > -0.15f) {
+        float t = (y + 0.15f) / 0.15f;
+        m_state.sunColorR = 0.6f + 0.4f * t;
+        m_state.sunColorG = 0.10f + 0.35f * t;
+        m_state.sunColorB = 0.02f + 0.08f * t;
     } else {
-        /* Ночь — солнце не видно */
         m_state.sunColorR = 0.0f;
         m_state.sunColorG = 0.0f;
         m_state.sunColorB = 0.0f;
     }
 
-    /* Цвет луны — мягкий голубовато-белый */
     m_state.moonColorR = 0.80f;
     m_state.moonColorG = 0.82f;
     m_state.moonColorB = 0.95f;
 
-    /* Ambient — рассеянный свет */
-    m_state.ambientIntensity = 0.25f + m_state.sunIntensity * 0.75f;
+    m_state.ambientIntensity = 0.15f + m_state.sunIntensity * 0.85f;
 }
 
 void Cycles::calcMoon(float /*sunAngle*/) {

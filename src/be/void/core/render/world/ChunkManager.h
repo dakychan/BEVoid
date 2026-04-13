@@ -44,7 +44,7 @@ private:
     void flushPending();
 
     uint32_t m_seed;
-    int      m_rdist = 4;
+    int      m_rdist = 8;
     BiomeNoise m_biome;
 
     std::unordered_map<Key, std::unique_ptr<Chunk>, KeyHash> m_chunks;
