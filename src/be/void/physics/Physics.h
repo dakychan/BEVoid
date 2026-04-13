@@ -20,6 +20,11 @@ struct PhysicsState {
     Vec3 position  = {0, 50.0f, 0};
     Vec3 velocity  = {0, 0, 0};
     bool onGround  = false;
+
+    /* Ветер — для облаков */
+    float windSpeed = 2.0f;     // м/с, скорость ветра
+    float windDirX  = 1.0f;     // направление ветра (X)
+    float windDirZ  = 0.0f;     // направление ветра (Z)
 };
 
 class Physics {
@@ -35,6 +40,10 @@ public:
     static constexpr float JUMP_VEL   = 10.0f;
     static constexpr float MAX_SPEED  = 15.0f;
     static constexpr float GROUND_Y  = 0.0f;
+
+    /* Получение параметров ветра */
+    float getWindSpeed() const { return 0.0f; }  // переопределяется в state
+    static float getDefaultWindSpeed() { return 2.0f; }
 };
 
 } // namespace be::void_::physics

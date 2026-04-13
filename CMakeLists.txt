@@ -178,3 +178,18 @@ else()
 endif()
 
 install(TARGETS bevoid DESTINATION bin)
+
+# ============================================================
+# Копирование шейдеров в директорию сборки
+# ============================================================
+file(GLOB SHADER_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/shaders/*")
+foreach(SHADER_FILE ${SHADER_FILES})
+    get_filename_component(SHADER_NAME ${SHADER_FILE} NAME)
+    add_custom_command(
+        TARGET bevoid POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${SHADER_FILE}
+            $<TARGET_FILE_DIR:bevoid>/shaders/${SHADER_NAME}
+        COMMENT "Copying shader ${SHADER_NAME} to build directory"
+    )
+endforeach()

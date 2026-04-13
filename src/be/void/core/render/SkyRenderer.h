@@ -19,6 +19,7 @@ class SkyRenderer {
 public:
     bool init();
     void draw(float time, const float* viewMat, const float* projMat, float sunElevation);
+    void drawWithCamPos(float time, const float* viewMat, const float* projMat, float sunElevation, float camX, float camY, float camZ);
     void shutdown();
 
     void setSunColor(float r, float g, float b) { m_sunR = r; m_sunG = g; m_sunB = b; }

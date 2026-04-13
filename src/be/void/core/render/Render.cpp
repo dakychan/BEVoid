@@ -302,7 +302,7 @@ void Render::draw(float time, const Vec3& camPos, float yaw, float pitch, int wi
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
 
-    /* Рисуем скай-домен с правильными цветами и солнцем */
+    /* Рисуем скай-домен — небо + облака + солнце/луна */
     if (m_skyOk) {
         m_sky.setSkyColors(st.skyR, st.skyG, st.skyB,
                            st.horizonR, st.horizonG, st.horizonB);
@@ -311,7 +311,7 @@ void Render::draw(float time, const Vec3& camPos, float yaw, float pitch, int wi
         m_sky.setMoonColor(st.moonColorR, st.moonColorG, st.moonColorB);
         m_sky.setMoonDirection(st.moonX, st.moonY, st.moonZ);
         float sunElevation = st.sunY;
-        m_sky.draw(time, viewMat, projMat, sunElevation);
+        m_sky.drawWithCamPos(time, viewMat, projMat, sunElevation, camPos.x, camPos.y, camPos.z);
     }
 
     glUseProgram(m_program);

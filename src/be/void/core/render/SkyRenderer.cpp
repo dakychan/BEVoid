@@ -207,11 +207,15 @@ bool SkyRenderer::init() {
 }
 
 void SkyRenderer::draw(float time, const float* viewMat, const float* projMat, float sunElevation) {
+    drawWithCamPos(time, viewMat, projMat, sunElevation, 0, 0, 0);
+}
+
+void SkyRenderer::drawWithCamPos(float time, const float* viewMat, const float* projMat, float sunElevation, float camX, float camY, float camZ) {
     if (m_prog == 0 || m_vao == 0) {
         SKY_LOGE("[SkyRenderer] draw ПЫТАЮСЬ рисовать но m_prog=%d m_vao=%d !!!\n", m_prog, m_vao);
         return;
     }
-    
+
     glUseProgram(m_prog);
     glUniform1f(glGetUniformLocation(m_prog, "uTime"), time);
     glUniform3f(glGetUniformLocation(m_prog, "uTopColor"), m_topR, m_topG, m_topB);
@@ -221,6 +225,7 @@ void SkyRenderer::draw(float time, const float* viewMat, const float* projMat, f
     glUniform3f(glGetUniformLocation(m_prog, "uMoonColor"), m_moonR, m_moonG, m_moonB);
     glUniform3f(glGetUniformLocation(m_prog, "uMoonDir"), m_moonDirX, m_moonDirY, m_moonDirZ);
     glUniform1f(glGetUniformLocation(m_prog, "uSunElevation"), sunElevation);
+    glUniform3f(glGetUniformLocation(m_prog, "uCamWorldPos"), camX, camY, camZ);
     glUniformMatrix4fv(glGetUniformLocation(m_prog, "uView"), 1, GL_FALSE, viewMat);
     glUniformMatrix4fv(glGetUniformLocation(m_prog, "uProj"), 1, GL_FALSE, projMat);
 
@@ -231,11 +236,6 @@ void SkyRenderer::draw(float time, const float* viewMat, const float* projMat, f
     glBindVertexArray(m_vao);
     glDrawElements(GL_TRIANGLES, m_idxCount, GL_UNSIGNED_SHORT, nullptr);
     glBindVertexArray(0);
-
-    GLenum err = glGetError();
-    if (err != GL_NO_ERROR) {
-        SKY_LOGE("[SkyRenderer] OpenGL ошибка после draw: 0x%X\n", err);
-    }
 
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
