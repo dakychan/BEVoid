@@ -11,8 +11,8 @@
 /*
  * be.void.core.input
  *
- * Модуль ввода — отдельные хендлеры клавиатуры и мыши.
- * Movement подписывается на Input через callback-интерфейс.
+ * Модуль ввода — поддержка нескольких слушателей.
+ * Movement и другие подсистемы подписываются через addListener().
  */
 
 #ifndef BEVOID_INPUT_H
@@ -20,10 +20,10 @@
 
 #include <cstdint>
 #include <functional>
+#include <vector>
 
 namespace be::void_::core::input {
 
-/* Коды клавиш ( GLFW-совместимые ) */
 enum class Key : int32_t {
     W = 87, S = 83, A = 65, D = 68,
     Space = 32, Escape = 256,
@@ -38,7 +38,6 @@ enum class KeyAction : int32_t {
     Repeat  = 2,
 };
 
-/* Подписчик на ввод */
 struct IInputListener {
     virtual void onKey(Key key, KeyAction action) = 0;
     virtual void onMouseMove(float dx, float dy)  = 0;
@@ -50,19 +49,18 @@ public:
     Input();
     ~Input();
 
-    /* Подписка — один слушатель (Movement) */
-    void setListener(IInputListener* listener) { m_listener = listener; }
+    void addListener(IInputListener* listener);
+    void removeListener(IInputListener* listener);
+    void setListener(IInputListener* listener);
 
-    /* Вызываются из Game (GLFW callbacks) */
     void onKey(int glfwKey, int glfwAction);
     void onMouseMove(double dx, double dy);
 
-    /* Текущее состояние клавиш (для Movement::update) */
     bool isKeyDown(Key key) const;
 
 private:
-    IInputListener* m_listener = nullptr;
-    bool m_keys[512] = {}; /* состояние всех клавиш */
+    std::vector<IInputListener*> m_listeners;
+    bool m_keys[512] = {};
 };
 
 } // namespace be::void_::core::input

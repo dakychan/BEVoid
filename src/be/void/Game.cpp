@@ -11,7 +11,7 @@
 /*
  * be.void — Game
  *
- * Чистый GLFW + накопление дельты мыши. Никакого Raw Input.
+ * Чистый GLFW + накопление дельты мыши. F11 — фуллскрин.
  */
 
 #include "be/void/Game.h"
@@ -42,27 +42,28 @@
 
 namespace be::void_ {
 
-/* Глобальный указатель */
 static Game* g_game = nullptr;
 static bool  g_mouseInputEnabled = true;
 
-/* Накапливаем дельту мыши в колбэке */
 static double g_mouseAccumX = 0;
 static double g_mouseAccumY = 0;
 
 Game::Game() {
     g_game = this;
 #if defined(BEVOID_PLATFORM_ANDROID)
-    /* На Android m_api должен быть создан ДО вызова registerAppCallbacks */
     m_api = std::make_unique<com::bevoid::aporia::system::ApiRender>();
 #endif
 }
+
 Game::~Game() { if (g_game == this) g_game = nullptr; }
 
-/* --- Public wrappers for Android --- */
 bool Game::doInitOpenGL() { return initOpenGL(); }
 bool Game::doInitCore()   { return m_core.init(); }
-void Game::doRender()     { m_core.render(m_time); }
+void Game::doRender() {
+    int w = m_api ? m_api->getWidth()  : 1280;
+    int h = m_api ? m_api->getHeight() : 720;
+    m_core.render(m_time, w, h);
+}
 void Game::doShutdown()   { shutdown(); }
 
 int Game::run(int /*argc*/, char** /*argv*/) {
@@ -85,9 +86,10 @@ int Game::run(int /*argc*/, char** /*argv*/) {
 }
 
 bool Game::initOpenGL() {
-#if !defined(BEVOID_PLATFORM_ANDROID)
-    m_api = std::make_unique<com::bevoid::aporia::system::ApiRender>();
-#endif
+    if (!m_api) {
+        m_api = std::make_unique<com::bevoid::aporia::system::ApiRender>();
+    }
+
     if (!m_api->create("BEVoid", 1280, 720)) {
         std::cerr << "[Game] ApiRender::create failed\n";
         return false;
@@ -104,7 +106,6 @@ bool Game::initOpenGL() {
     glfwSetInputMode(m_api->getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     glfwSetInputMode(m_api->getWindow(), GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
 
-    /* Центрируем курсор */
     int w, h;
     glfwGetWindowSize(m_api->getWindow(), &w, &h);
     glfwSetCursorPos(m_api->getWindow(), w * 0.5, h * 0.5);
@@ -131,6 +132,13 @@ bool Game::initOpenGL() {
             glfwGetWindowSize(win, &ww, &hh);
             glfwSetCursorPos(win, ww * 0.5, hh * 0.5);
         }
+
+        /* F11 — фуллскрин */
+        if (key == GLFW_KEY_F11 && action == GLFW_PRESS) {
+            if (g_game && g_game->getApi()) {
+                g_game->getApi()->toggleFullscreen();
+            }
+        }
     });
 
     /* ЛКМ — захватить снова */
@@ -156,16 +164,16 @@ bool Game::initOpenGL() {
     std::cout << "[Game] Renderer: " << (glRen ? glRen : "?") << "\n";
 #endif
 
-    auto& info = const_cast<com::bevoid::aporia::system::SystemInfo&>(
-        m_api->getOsManager().getInfo());
-    info.setGpuInfo(glVen, glRen, glVer);
+    m_api->getOsManager().getInfo().setGpuInfo(glVen, glRen, glVer);
 
     glEnable(GL_DEPTH_TEST);
 
 #if !defined(BEVOID_PLATFORM_ANDROID)
     m_api->setRenderCallback([](void* userData) {
         auto* game = static_cast<Game*>(userData);
-        game->m_core.render(game->m_time);
+        int ww = game->getApi()->getWidth();
+        int hh = game->getApi()->getHeight();
+        game->m_core.render(game->m_time, ww, hh);
     }, this);
 #endif
 
@@ -189,7 +197,6 @@ void Game::mainLoop() {
     while (m_running && !m_api->shouldClose()) {
         m_api->pollEvents();
 
-        /* --- Обрабатываем накопленную дельту мыши --- */
         if (g_mouseInputEnabled && (std::abs(g_mouseAccumX) > 0.01 || std::abs(g_mouseAccumY) > 0.01)) {
             m_core.getInput().onMouseMove(g_mouseAccumX, g_mouseAccumY);
             g_mouseAccumX = 0;
@@ -203,7 +210,9 @@ void Game::mainLoop() {
         m_time += delta;
 
         m_core.update(delta);
-        m_core.render(m_time);
+        int w = m_api->getWidth();
+        int h = m_api->getHeight();
+        m_core.render(m_time, w, h);
 
         m_api->swapBuffers();
     }
@@ -271,46 +280,40 @@ static int32_t handleInput(android_app*, AInputEvent* event) {
 
 extern "C" void android_main(struct android_app* app) {
     ALOGI("=== BEVoid Android entry point ===");
-    
+
     be::void_::Game game;
     g_androidGame = &game;
     g_running = true;
-    
-    /* Привязываем APP_CMD callbacks до инициализации */
+
     game.getApi()->registerAppCallbacks(app);
     app->onInputEvent = handleInput;
-    
-    /* Инициализация */
+
     if (!game.doInitOpenGL()) { ALOGE("OpenGL init failed"); return; }
     if (!game.doInitCore())   { ALOGE("Core init failed"); return; }
-    
-    /* Render callback */
-    game.getApi()->setRenderCallback([](void*) {
+
+    game.getApi()->setRenderCallback([](void* userData) {
         if (g_androidGame) g_androidGame->doRender();
     }, nullptr);
-    
-    /* Главный цикл */
+
     ALOGI("Starting main loop");
     while (g_running) {
         int events;
         struct android_poll_source* source;
-        
-        /* Блокируем только если нет окна, иначе не блокируем */
+
         int timeoutMs = g_androidGame->getApi()->getHeight() > 0 ? 0 : -1;
-        
+
         while (ALooper_pollAll(timeoutMs, nullptr, &events, (void**)&source) >= 0) {
             if (source) {
                 source->process(app, source);
             }
         }
-        
-        /* Рендерим только если окно активно */
+
         if (g_androidGame->getApi()->getHeight() > 0) {
             game.getApi()->callRenderCallback();
             game.getApi()->swapBuffers();
         }
     }
-    
+
     ALOGI("Shutting down");
     game.doShutdown();
     g_androidGame = nullptr;

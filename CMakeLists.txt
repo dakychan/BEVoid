@@ -55,6 +55,18 @@ set(HEADERS_SYSTEM
     src/com/bevoid/aporia/system/ApiRender.h
 )
 
+set(SOURCES_DRIVERS
+    src/drivers/GlfwWindowDriver.cpp
+    src/drivers/EglWindowDriver.cpp
+)
+
+set(HEADERS_DRIVERS
+    src/drivers/IRenderer.h
+    src/drivers/IWindowDriver.h
+    src/drivers/GlfwWindowDriver.h
+    src/drivers/EglWindowDriver.h
+)
+
 # ============================================================
 # Glad — OpenGL loader (всегда нужен)
 # ============================================================
@@ -100,6 +112,7 @@ if(ANDROID)
     add_library(bevoid SHARED
         ${SOURCES_GAME} ${HEADERS_GAME}
         ${SOURCES_SYSTEM} ${HEADERS_SYSTEM}
+        ${SOURCES_DRIVERS} ${HEADERS_DRIVERS}
         ${CMAKE_ANDROID_NDK}/sources/android/native_app_glue/android_native_app_glue.c
     )
 
@@ -128,6 +141,7 @@ elseif(WIN32)
     add_executable(bevoid WIN32
         ${SOURCES_GAME} ${HEADERS_GAME}
         ${SOURCES_SYSTEM} ${HEADERS_SYSTEM}
+        ${SOURCES_DRIVERS} ${HEADERS_DRIVERS}
         src/assets/bevoid.rc
     )
 
@@ -141,6 +155,7 @@ elseif(APPLE)
     add_executable(bevoid
         ${SOURCES_GAME} ${HEADERS_GAME}
         ${SOURCES_SYSTEM} ${HEADERS_SYSTEM}
+        ${SOURCES_DRIVERS} ${HEADERS_DRIVERS}
     )
 
     target_link_libraries(bevoid PRIVATE glfw glad)
@@ -153,6 +168,7 @@ elseif(UNIX)
     add_executable(bevoid
         ${SOURCES_GAME} ${HEADERS_GAME}
         ${SOURCES_SYSTEM} ${HEADERS_SYSTEM}
+        ${SOURCES_DRIVERS} ${HEADERS_DRIVERS}
     )
 
     target_link_libraries(bevoid PRIVATE glfw glad)

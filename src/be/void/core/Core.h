@@ -39,7 +39,7 @@ public:
 
     /* Обновление и рендер */
     void update(float deltaTime);
-    void render(float time);
+    void render(float time, int viewportW, int viewportH);
 
     /* Доступ к подсистемам */
     render::Render&     getRender()   { return m_render;   }

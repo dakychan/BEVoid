@@ -330,6 +330,10 @@ void Render::draw(float time, const Vec3& camPos, float yaw, float pitch, int wi
 
     m_chunkManager.draw();
 
+    if (m_skyOk) {
+        m_sky.drawSunBillboard(projMat, viewMat, camPos.x, camPos.y, camPos.z);
+    }
+
     drawCrosshair();
     drawHand();
 }

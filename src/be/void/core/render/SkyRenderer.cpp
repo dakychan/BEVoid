@@ -74,19 +74,19 @@ bool SkyRenderer::init() {
         "    float t = pow(max(h, 0.0), 0.45);\n"
         "    vec3 sky = mix(uHorizonColor, uTopColor, t);\n"
         "    float sdot = dot(dir, uSunDir);\n"
-        "    float sunGlow = smoothstep(-0.3, 0.1, uSunElevation);\n"
+        "    float sunGlow = smoothstep(-0.1, 0.05, uSunElevation);\n"
         "    sky = mix(sky, uSunColor, pow(max(sdot, 0.0), 4.0) * 0.3 * sunGlow);\n"
         "    sky += uSunColor * smoothstep(0.96, 1.0, max(sdot, 0.0)) * 3.0 * sunGlow;\n"
-        "    float belowGlow = smoothstep(0.0, -0.3, uSunElevation);\n"
-        "    sky += uSunColor * pow(max(sdot, 0.0), 2.0) * 0.1 * belowGlow;\n"
-        "    float moonF = smoothstep(0.0, -0.25, uSunElevation);\n"
+        "    float belowGlow = smoothstep(0.0, -0.15, uSunElevation);\n"
+        "    sky += uSunColor * pow(max(sdot, 0.0), 2.0) * 0.15 * belowGlow;\n"
+        "    float moonF = smoothstep(0.05, -0.15, uSunElevation);\n"
         "    float mdot = dot(dir, uMoonDir);\n"
         "    if (moonF > 0.01) {\n"
         "        float ma = acos(clamp(mdot, -1.0, 1.0));\n"
         "        vec2 muv = dir.xy / max(mdot, 0.001);\n"
         "        float surf = smoothstep(0.35, 0.65, fbm2(muv * 8.0));\n"
         "        float md = (1.0 - smoothstep(0.024, 0.033, ma)) * surf;\n"
-        "        sky += uMoonColor * 1.2 * (md * 1.5 + pow(max(mdot, 0.0), 32.0) * 0.08) * moonF;\n"
+        "        sky += uMoonColor * 1.5 * (md * 2.0 + pow(max(mdot, 0.0), 32.0) * 0.12) * moonF;\n"
         "    }\n"
         "    fragColor = vec4(sky, 1.0);\n"
         "}\n";
@@ -300,11 +300,10 @@ void SkyRenderer::drawWithCamPos(float time, const float* viewMat, const float* 
     glDepthMask(GL_TRUE);
 }
 
-void SkyRenderer::drawSun(const float* projMat, const float* viewMat) {
+void SkyRenderer::drawSunBillboard(const float* projMat, const float* viewMat, float camX, float camY, float camZ) {
     if (m_sunProg == 0 || m_sunVao == 0) return;
-    if (m_sunDirY < -0.1f) return;
+    if (m_sunDirY < -0.5f) return;
 
-    // Умножаем proj * view (с обнулённой трансляцией) для billboard
     float vNoTrans[16];
     for (int i = 0; i < 16; i++) vNoTrans[i] = viewMat[i];
     vNoTrans[12] = 0; vNoTrans[13] = 0; vNoTrans[14] = 0;
@@ -315,17 +314,14 @@ void SkyRenderer::drawSun(const float* projMat, const float* viewMat) {
             vp[c * 4 + r] = projMat[r] * vNoTrans[c*4] + projMat[4+r] * vNoTrans[c*4+1] +
                             projMat[8+r] * vNoTrans[c*4+2] + projMat[12+r] * vNoTrans[c*4+3];
 
-    // Позиция солнца в мировом пространстве
     float sunDist = 400.0f;
-    float sunX = m_sunDirX * sunDist;
-    float sunY = m_sunDirY * sunDist;
-    float sunZ = m_sunDirZ * sunDist;
+    float sunX = camX + m_sunDirX * sunDist;
+    float sunY = camY + m_sunDirY * sunDist;
+    float sunZ = camZ + m_sunDirZ * sunDist;
 
-    // Right и Up из view матрицы
     float rightX = viewMat[0], rightY = viewMat[1], rightZ = viewMat[2];
     float upX = viewMat[4], upY = viewMat[5], upZ = viewMat[6];
 
-    // Размер солнца — побольше чтобы было видно
     float sunSize = 25.0f;
 
     glUseProgram(m_sunProg);
@@ -336,15 +332,17 @@ void SkyRenderer::drawSun(const float* projMat, const float* viewMat) {
     glUniform3f(glGetUniformLocation(m_sunProg, "uColor"), m_sunR, m_sunG, m_sunB);
     glUniform1f(glGetUniformLocation(m_sunProg, "uSize"), sunSize);
 
-    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
     glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE); // аддитивное блендинг для свечения
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
     glBindVertexArray(m_sunVao);
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, nullptr);
     glBindVertexArray(0);
 
     glDisable(GL_BLEND);
+    glDepthMask(GL_TRUE);
     glEnable(GL_DEPTH_TEST);
 }
 

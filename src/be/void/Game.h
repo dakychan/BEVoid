@@ -28,16 +28,13 @@ public:
     Game();
     ~Game();
 
-    /* Запустить игру */
     int run(int argc, char** argv);
 
-    /* Публичные методы для Android entry point */
     bool doInitOpenGL();
     bool doInitCore();
     void doRender();
     void doShutdown();
 
-    /* Доступ к подсистемам для Win32 callbacks */
     core::Core& getCore()  { return m_core;  }
     com::bevoid::aporia::system::ApiRender* getApi() { return m_api.get(); }
 

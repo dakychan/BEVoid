@@ -173,22 +173,22 @@ void main() {
 
     float sdot = dot(dir, uSunDir);
 
-    float sunGlow = smoothstep(-0.3, 0.1, uSunElevation);
+    float sunGlow = smoothstep(-0.1f, 0.05f, uSunElevation);
     sky = mix(sky, uSunColor, pow(max(sdot, 0.0), 4.0) * 0.3 * sunGlow);
     sky += uSunColor * smoothstep(0.96, 1.0, max(sdot, 0.0)) * 3.0 * sunGlow;
     sky += uSunColor * pow(max(sdot, 0.0), 16.0) * 0.5 * sunGlow;
 
-    float belowGlow = smoothstep(0.0, -0.3, uSunElevation);
-    sky += uSunColor * pow(max(sdot, 0.0), 2.0) * 0.1 * belowGlow;
+    float belowGlow = smoothstep(0.0, -0.15, uSunElevation);
+    sky += uSunColor * pow(max(sdot, 0.0), 2.0) * 0.15 * belowGlow;
 
-    float moonF = smoothstep(0.0, -0.25, uSunElevation);
+    float moonF = smoothstep(0.05, -0.15, uSunElevation);
     float mdot = dot(dir, uMoonDir);
     if (moonF > 0.01) {
         float ma = acos(clamp(mdot, -1.0, 1.0));
         vec2 muv = dir.xy / max(mdot, 0.001);
         float surf = smoothstep(0.35, 0.65, fbm2(muv * 8.0));
         float md = (1.0 - smoothstep(0.024, 0.033, ma)) * surf;
-        sky += uMoonColor * 1.2 * (md * 1.5 + pow(max(mdot, 0.0), 32.0) * 0.08) * moonF;
+        sky += uMoonColor * 1.5 * (md * 2.0 + pow(max(mdot, 0.0), 32.0) * 0.12) * moonF;
     }
 
     sky += renderStars(dir, uSunElevation);

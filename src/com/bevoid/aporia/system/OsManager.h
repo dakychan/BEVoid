@@ -29,6 +29,7 @@ public:
 
     void detect();
     const SystemInfo& getInfo() const { return m_info; }
+    SystemInfo&       getInfo()       { return m_info; }
 
     bool isWindows() const { return m_info.platform == Platform::Windows; }
     bool isLinux()   const { return m_info.platform == Platform::Linux;   }

@@ -38,6 +38,7 @@ public:
     virtual bool   init(const WindowConfig& config) = 0;
     virtual void   shutdown() = 0;
     virtual bool   pollEvents() = 0;
+    virtual bool   shouldClose() const = 0;
     virtual void   setTitle(const std::string& title) = 0;
     virtual void   swapBuffers() = 0;
     virtual int32_t getWidth() const = 0;
@@ -45,6 +46,10 @@ public:
 
     /* Нативный указатель на окно (HWND / Display* / ANativeWindow*) */
     virtual void* getNativeWindow() const = 0;
+
+    /* Полноэкранный режим */
+    virtual void   setFullscreen(bool fullscreen) = 0;
+    virtual bool   isFullscreen() const = 0;
 };
 
 } // namespace drivers

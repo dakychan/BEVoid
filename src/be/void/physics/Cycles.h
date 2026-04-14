@@ -87,23 +87,17 @@ private:
     /* Цвет неба по положению солнца */
     void calcSkyColor();
 
-    float m_timezone = 3.0f; /* UTC+3 по умолчанию (Москва) */
-    float m_timeOfDay = 17.0f * 60.0f; /* старт в 17:00 — ближе к закату (1020 мин) */
+    float m_timezone = 3.0f;
+    float m_timeOfDay = 17.0f * 60.0f;
     SunMoonState m_state;
 
-    /* Фазы луны (цикл ~29.5 дней) */
     float m_moonCycle = 29.5f * DAY_LENGTH;
 
-    /* Смещение стартовой позиции солнца (сдвиг на 2 радиана за каждый новый день) */
-    float m_dayStartOffset = 0.0f;
-    static constexpr float DAY_SHIFT = 2.0f;  /* сдвиг восхода за каждый цикл дня */
-
-    /* --- Система редких эвентов --- */
     uint32_t m_dayCounter = 0;
-    uint32_t m_eventThreshold = 0;   /* через сколько дней следующий эвент */
+    uint32_t m_eventThreshold = 0;
     EventType m_activeEvent = EventType_None;
-    float m_eventDuration = 0.0f;    /* сколько длится эвент в днях */
-    float m_eventTimer = 0.0f;       /* сколько эвент уже идёт */
+    float m_eventDuration = 0.0f;
+    float m_eventTimer = 0.0f;
 
     void pickNextEventThreshold();
     void triggerEvent(EventType type, float durationDays);

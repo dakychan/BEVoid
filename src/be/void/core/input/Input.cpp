@@ -11,7 +11,7 @@
 /*
  * be.void.core.input
  *
- * Реализация — маппинг GLFW → Key, уведомление слушателя.
+ * Реализация — маппинг GLFW → Key, уведомление слушателей.
  */
 
 #include "core/input/Input.h"
@@ -35,6 +35,21 @@ static Key toKey(int glfwKey) {
     }
 }
 
+void Input::addListener(IInputListener* listener) {
+    if (listener) m_listeners.push_back(listener);
+}
+
+void Input::removeListener(IInputListener* listener) {
+    m_listeners.erase(
+        std::remove(m_listeners.begin(), m_listeners.end(), listener),
+        m_listeners.end());
+}
+
+void Input::setListener(IInputListener* listener) {
+    m_listeners.clear();
+    if (listener) m_listeners.push_back(listener);
+}
+
 void Input::onKey(int glfwKey, int glfwAction) {
     Key key = toKey(glfwKey);
     if (key == Key::Unknown) return;
@@ -43,14 +58,14 @@ void Input::onKey(int glfwKey, int glfwAction) {
     if (glfwKey >= 0 && glfwKey < 512) {
         m_keys[static_cast<int>(glfwKey)] = (action != KeyAction::Release);
     }
-    if (m_listener) {
-        m_listener->onKey(key, action);
+    for (auto* l : m_listeners) {
+        l->onKey(key, action);
     }
 }
 
 void Input::onMouseMove(double dx, double dy) {
-    if (m_listener) {
-        m_listener->onMouseMove(static_cast<float>(dx), static_cast<float>(dy));
+    for (auto* l : m_listeners) {
+        l->onMouseMove(static_cast<float>(dx), static_cast<float>(dy));
     }
 }
 
