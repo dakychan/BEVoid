@@ -32,14 +32,22 @@ namespace be::void_::screens {
 
 void MenuScreen::onEnter() {
     m_items = {
-        { "Играть", false },
-        { "Создать мир", false },
-        { "Настройки", false },
-        { "Выход", false },
+        { "Play", false },
+        { "Create World", false },
+        { "Settings", false },
+        { "Exit", false },
     };
     m_selected = 0;
     m_nextScreen = ScreenID::None;
     initShaders();
+
+    if (!m_fontsLoaded) {
+        m_fontRenderer.init();
+        m_fontRenderer.loadFont("default", "default");
+        m_fontRenderer.loadFont("bold", "bold");
+        m_fontsLoaded = true;
+    }
+
     std::cout << "[Menu] Enter\n";
 }
 
@@ -56,6 +64,34 @@ void MenuScreen::update(float /*dt*/) {
 
 #if !defined(BEVOID_PLATFORM_ANDROID)
     auto* window = glfwGetCurrentContext();
+
+    glfwGetCursorPos(window, &m_mouseX, &m_mouseY);
+    int winW, winH;
+    glfwGetWindowSize(window, &winW, &winH);
+
+    float ndcX = (2.0f * (float)m_mouseX / (float)winW) - 1.0f;
+    float ndcY = 1.0f - (2.0f * (float)m_mouseY / (float)winH);
+
+    m_hoveredItem = -1;
+    for (size_t i = 0; i < m_items.size(); i++) {
+        float btnY = BTN_START_Y - (float)i * BTN_SPACING;
+        if (ndcX >= BTN_X1 && ndcX <= BTN_X2 &&
+            ndcY >= btnY - BTN_HALF_H && ndcY <= btnY + BTN_HALF_H) {
+            m_hoveredItem = (int)i;
+            break;
+        }
+    }
+
+    if (m_hoveredItem >= 0) {
+        m_selected = m_hoveredItem;
+    }
+
+    bool leftNow = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+    if (leftNow && !m_mouseLeftPressed && m_hoveredItem >= 0) {
+        m_selected = m_hoveredItem;
+        selectItem();
+    }
+    m_mouseLeftPressed = leftNow;
 
     bool upNow = glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS ||
                  glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS;
@@ -98,14 +134,16 @@ void MenuScreen::render(float time) {
 
     float pulse = 0.5f + 0.5f * std::sin(time * 3.0f);
 
-    drawText(0.0f, 0.7f, "BEVoid", 0.08f, 0.2f + pulse * 0.3f, 0.6f + pulse * 0.2f, 0.9f);
+    drawMsdfText(0.0f, TITLE_Y, "BEVoid", TITLE_SCALE,
+                 0.2f + pulse * 0.3f, 0.6f + pulse * 0.2f, 0.9f);
 
     for (size_t i = 0; i < m_items.size(); i++) {
-        float y = 0.4f - i * 0.15f;
+        float y = BTN_START_Y - (float)i * BTN_SPACING;
         drawButton(y, m_items[i].text, (int)i == m_selected);
     }
 
-    drawText(0.0f, -0.85f, "WASD - navigation | Enter - select", 0.02f, 0.5f, 0.5f, 0.5f);
+    drawMsdfText(0.0f, -0.85f, "WASD / Mouse - navigation | Enter / Click - select", 0.02f,
+                 0.5f, 0.5f, 0.5f);
 
     glEnable(GL_DEPTH_TEST);
 }
@@ -178,8 +216,8 @@ void MenuScreen::initShaders() {
 }
 
 void MenuScreen::drawButton(float y, const std::string& text, bool selected) const {
-    float bx1 = -0.4f, bx2 = 0.4f;
-    float by1 = y - 0.06f, by2 = y + 0.06f;
+    float bx1 = BTN_X1, bx2 = BTN_X2;
+    float by1 = y - BTN_HALF_H, by2 = y + BTN_HALF_H;
 
     float r = selected ? 0.15f : 0.08f;
     float g = selected ? 0.6f : 0.12f;
@@ -218,50 +256,15 @@ void MenuScreen::drawButton(float y, const std::string& text, bool selected) con
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
     glBindVertexArray(0);
 
-    drawText(0.0f, y, text, 0.04f, 1.0f, 1.0f, 1.0f);
+    const_cast<MenuScreen*>(this)->drawMsdfText(0.0f, y, text, BTN_TEXT_SCALE, 1.0f, 1.0f, 1.0f);
 }
 
-void MenuScreen::drawText(float x, float y, const std::string& text, float scale, float r, float g, float b) const {
-    float curX = x - (text.size() * scale * 0.3f);
-    for (char c : text) {
-        float x1 = curX, x2 = curX + scale;
-        float y1 = y - scale * 0.5f, y2 = y + scale * 0.5f;
-
-        float verts[] = {
-            x1, y1, r, g, b,
-            x2, y1, r, g, b,
-            x2, y2, r, g, b,
-            x1, y2, r, g, b,
-        };
-        uint32_t idx[] = { 0,1,2, 2,3,0 };
-
-        static GLuint tvao = 0, tvbo = 0, tebo = 0;
-        if (!tvao) {
-            glGenVertexArrays(1, &tvao);
-            glGenBuffers(1, &tvbo);
-            glGenBuffers(1, &tebo);
-            glBindVertexArray(tvao);
-            glBindBuffer(GL_ARRAY_BUFFER, tvbo);
-            glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_DYNAMIC_DRAW);
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, tebo);
-            glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(idx), idx, GL_STATIC_DRAW);
-            glEnableVertexAttribArray(0);
-            glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5*sizeof(float), (void*)0);
-            glEnableVertexAttribArray(1);
-            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 5*sizeof(float), (void*)(2*sizeof(float)));
-            glBindVertexArray(0);
-        }
-
-        glUseProgram(m_textProg);
-        if (!m_textProg) { curX += scale * 0.6f; continue; }
-        glBindBuffer(GL_ARRAY_BUFFER, tvbo);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(verts), verts);
-        glBindVertexArray(tvao);
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-        glBindVertexArray(0);
-
-        curX += scale * 0.6f;
-    }
+void MenuScreen::drawMsdfText(float x, float y, const std::string& text, float scale,
+                               float r, float g, float b, float a) {
+    if (!m_fontsLoaded) return;
+    float tw = m_fontRenderer.getTextWidth("bold", text, scale);
+    float startX = x - tw * 0.5f;
+    m_fontRenderer.drawText("bold", text, startX, y, scale, r, g, b, a);
 }
 
 } // namespace be::void_::screens

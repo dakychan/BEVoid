@@ -18,6 +18,7 @@
 #define BEVOID_MENU_SCREEN_H
 
 #include "screens/Screen.h"
+#include "core/render/font/FontRenderer.h"
 #include <string>
 #include <vector>
 
@@ -50,7 +51,8 @@ public:
 
 private:
     void drawButton(float y, const std::string& text, bool selected) const;
-    void drawText(float x, float y, const std::string& text, float scale, float r, float g, float b) const;
+    void drawMsdfText(float x, float y, const std::string& text, float scale,
+                      float r, float g, float b, float a = 1.0f);
     void initShaders();
     void selectItem();
 
@@ -62,9 +64,26 @@ private:
     GLuint m_textProg = 0;
     bool m_shadersInit = false;
 
+    core::render::font::FontRenderer m_fontRenderer;
+    bool m_fontsLoaded = false;
+
     bool m_upPressed = false;
     bool m_downPressed = false;
     bool m_enterPressed = false;
+
+    double m_mouseX = 0.0;
+    double m_mouseY = 0.0;
+    bool m_mouseLeftPressed = false;
+    int m_hoveredItem = -1;
+
+    static constexpr float BTN_X1 = -0.25f;
+    static constexpr float BTN_X2 =  0.25f;
+    static constexpr float BTN_HALF_H = 0.04f;
+    static constexpr float BTN_SPACING = 0.10f;
+    static constexpr float BTN_START_Y = 0.25f;
+    static constexpr float TITLE_Y = 0.6f;
+    static constexpr float TITLE_SCALE = 0.06f;
+    static constexpr float BTN_TEXT_SCALE = 0.03f;
 };
 
 } // namespace be::void_::screens

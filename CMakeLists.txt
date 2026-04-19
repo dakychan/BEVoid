@@ -17,11 +17,18 @@ set(SOURCES_GAME
     src/be/void/core/render/world/Biome.cpp
     src/be/void/core/render/world/Chunk.cpp
     src/be/void/core/render/world/ChunkManager.cpp
+    src/be/void/core/render/world/Structures.cpp
+    src/be/void/core/render/font/FontAtlas.cpp
+    src/be/void/core/render/font/FontRenderer.cpp
     src/be/void/core/movement/Movement.cpp
     src/be/void/core/input/Input.cpp
     src/be/void/network/Network.cpp
     src/be/void/physics/Physics.cpp
     src/be/void/physics/Cycles.cpp
+    src/be/void/screens/Screen.cpp
+    src/be/void/screens/MenuScreen.cpp
+    src/be/void/screens/GameScreen.cpp
+    src/third_party/stb/stb_image_impl.cpp
 )
 
 set(HEADERS_GAME
@@ -36,12 +43,19 @@ set(HEADERS_GAME
     src/be/void/core/render/world/Biome.h
     src/be/void/core/render/world/Chunk.h
     src/be/void/core/render/world/ChunkManager.h
+    src/be/void/core/render/world/Structures.h
+    src/be/void/core/render/font/Glyph.h
+    src/be/void/core/render/font/FontAtlas.h
+    src/be/void/core/render/font/FontRenderer.h
     src/be/void/physics/metrics/Units.h
     src/be/void/core/movement/Movement.h
     src/be/void/core/input/Input.h
     src/be/void/network/Network.h
     src/be/void/physics/Physics.h
     src/be/void/physics/Cycles.h
+    src/be/void/screens/Screen.h
+    src/be/void/screens/MenuScreen.h
+    src/be/void/screens/GameScreen.h
 )
 
 set(SOURCES_SYSTEM
@@ -185,6 +199,7 @@ target_include_directories(bevoid PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/src/be/void
     ${CMAKE_CURRENT_SOURCE_DIR}/src/com/bevoid/aporia
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/third_party/stb
 )
 
 if(MSVC)
@@ -207,5 +222,32 @@ foreach(SHADER_FILE ${SHADER_FILES})
             ${SHADER_FILE}
             $<TARGET_FILE_DIR:bevoid>/shaders/${SHADER_NAME}
         COMMENT "Copying shader ${SHADER_NAME} to build directory"
+    )
+endforeach()
+
+# ============================================================
+# Копирование ассетов (текстуры) в директорию сборки
+# ============================================================
+file(GLOB ASSET_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/assets/*.png")
+foreach(ASSET_FILE ${ASSET_FILES})
+    get_filename_component(ASSET_NAME ${ASSET_FILE} NAME)
+    add_custom_command(
+        TARGET bevoid POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${ASSET_FILE}
+            $<TARGET_FILE_DIR:bevoid>/assets/${ASSET_NAME}
+        COMMENT "Copying asset ${ASSET_NAME} to build directory"
+    )
+endforeach()
+
+file(GLOB FONT_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/assets/fonts/*")
+foreach(FONT_FILE ${FONT_FILES})
+    get_filename_component(FONT_NAME ${FONT_FILE} NAME)
+    add_custom_command(
+        TARGET bevoid POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${FONT_FILE}
+            $<TARGET_FILE_DIR:bevoid>/assets/fonts/${FONT_NAME}
+        COMMENT "Copying font ${FONT_NAME} to build directory"
     )
 endforeach()
