@@ -22,6 +22,8 @@
 
 #if !defined(BEVOID_PLATFORM_ANDROID)
     #include <glad/glad.h>
+    #define GLFW_INCLUDE_NONE
+    #include <GLFW/glfw3.h>
 #else
     #include <GLES3/gl3.h>
 #endif
@@ -50,7 +52,43 @@ void MenuScreen::onExit() {
 }
 
 void MenuScreen::update(float /*dt*/) {
-    // TODO: Input через InputManager
+    if (m_nextScreen != ScreenID::None) return;
+
+#if !defined(BEVOID_PLATFORM_ANDROID)
+    auto* window = glfwGetCurrentContext();
+
+    bool upNow = glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS ||
+                 glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS;
+    bool downNow = glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS ||
+                   glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS;
+    bool enterNow = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS ||
+                    glfwGetKey(window, GLFW_KEY_ENTER) == GLFW_PRESS;
+
+    if (upNow && !m_upPressed) {
+        m_selected = (m_selected - 1 + (int)m_items.size()) % (int)m_items.size();
+    }
+    m_upPressed = upNow;
+
+    if (downNow && !m_downPressed) {
+        m_selected = (m_selected + 1) % (int)m_items.size();
+    }
+    m_downPressed = downNow;
+
+    if (enterNow && !m_enterPressed) {
+        selectItem();
+    }
+    m_enterPressed = enterNow;
+#endif
+}
+
+void MenuScreen::selectItem() {
+    switch (m_selected) {
+        case 0: m_nextScreen = ScreenID::Game; break;
+        case 1: break;
+        case 2: break;
+        case 3: break;
+        default: break;
+    }
 }
 
 void MenuScreen::render(float time) {
@@ -75,30 +113,63 @@ void MenuScreen::render(float time) {
 void MenuScreen::initShaders() {
     if (m_shadersInit) return;
 
-    const char* btnVs = R"(
-#version 330 core
-layout(0) in vec2 p;
-layout(1) in vec3 c;
-out vec3 vc;
-void main(){gl_Position=vec4(p,0,1);vc=c;}
-)";
-    const char* btnFs = R"(
-#version 330 core
-in vec3 vc;
-out vec4 fc;
-void main(){fc=vec4(vc,1);}
-)";
+    auto compile = [](GLenum type, const char* src) -> GLuint {
+        GLuint s = glCreateShader(type);
+        glShaderSource(s, 1, &src, nullptr);
+        glCompileShader(s);
+        GLint ok;
+        glGetShaderiv(s, GL_COMPILE_STATUS, &ok);
+        if (!ok) {
+            char log[512];
+            glGetShaderInfoLog(s, 512, nullptr, log);
+            std::cerr << "[Menu] Shader compile error: " << log << "\n";
+            glDeleteShader(s);
+            return 0;
+        }
+        return s;
+    };
 
-    GLuint v = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(v, 1, &btnVs, nullptr);
-    glCompileShader(v);
-    GLuint f = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(f, 1, &btnFs, nullptr);
-    glCompileShader(f);
+    const char* btnVs =
+#if defined(BEVOID_PLATFORM_ANDROID)
+        "#version 300 es\n"
+#else
+        "#version 330 core\n"
+#endif
+        "layout(location = 0) in vec2 p;\n"
+        "layout(location = 1) in vec3 c;\n"
+        "out vec3 vc;\n"
+        "void main(){gl_Position=vec4(p,0,1);vc=c;}\n";
+    const char* btnFs =
+#if defined(BEVOID_PLATFORM_ANDROID)
+        "#version 300 es\n"
+        "precision mediump float;\n"
+#else
+        "#version 330 core\n"
+#endif
+        "in vec3 vc;\n"
+        "out vec4 fc;\n"
+        "void main(){fc=vec4(vc,1);}\n";
+
+    GLuint v = compile(GL_VERTEX_SHADER, btnVs);
+    GLuint f = compile(GL_FRAGMENT_SHADER, btnFs);
+    if (!v || !f) {
+        std::cerr << "[Menu] Shader compilation failed\n";
+        m_shadersInit = true;
+        return;
+    }
     m_buttonProg = glCreateProgram();
     glAttachShader(m_buttonProg, v);
     glAttachShader(m_buttonProg, f);
     glLinkProgram(m_buttonProg);
+    GLint linked;
+    glGetProgramiv(m_buttonProg, GL_LINK_STATUS, &linked);
+    if (!linked) {
+        char log[512];
+        glGetProgramInfoLog(m_buttonProg, 512, nullptr, log);
+        std::cerr << "[Menu] Program link error: " << log << "\n";
+        glDeleteProgram(m_buttonProg);
+        m_buttonProg = 0;
+    }
     glDeleteShader(v);
     glDeleteShader(f);
 
@@ -140,6 +211,7 @@ void MenuScreen::drawButton(float y, const std::string& text, bool selected) con
     }
 
     glUseProgram(m_buttonProg);
+    if (!m_buttonProg) return;
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(verts), verts);
     glBindVertexArray(vao);
@@ -181,6 +253,7 @@ void MenuScreen::drawText(float x, float y, const std::string& text, float scale
         }
 
         glUseProgram(m_textProg);
+        if (!m_textProg) { curX += scale * 0.6f; continue; }
         glBindBuffer(GL_ARRAY_BUFFER, tvbo);
         glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(verts), verts);
         glBindVertexArray(tvao);

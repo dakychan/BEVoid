@@ -19,6 +19,8 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <vector>
+#include <stb_image.h>
 
 #if defined(BEVOID_PLATFORM_ANDROID)
     #include <GLES3/gl3.h>
@@ -256,6 +258,8 @@ bool Render::initShaders() {
     m_uSkyColor = glGetUniformLocation(m_program, "uSkyColor");
     m_uHorizonColor = glGetUniformLocation(m_program, "uHorizonColor");
     m_uAmbient  = glGetUniformLocation(m_program, "uAmbient");
+    m_uAsphaltTexture = glGetUniformLocation(m_program, "uAsphaltTexture");
+    m_uUseAsphaltTexture = glGetUniformLocation(m_program, "uUseAsphaltTexture");
 
     LOGI("[Render] Terrain shaders OK\n");
     return true;
@@ -265,11 +269,47 @@ bool Render::initSky() {
     m_skyOk = m_sky.init();
     if (m_skyOk) LOGI("[Render] Sky dome OK\n");
     else LOGE("[Render] Sky dome FAILED, will skip\n");
-    return true; // never fail init
+    return true;
 }
 
 bool Render::initChunks() {
-    return true; /* ChunkManager init внутри */
+    glGenTextures(1, &m_asphaltTexture);
+    glBindTexture(GL_TEXTURE_2D, m_asphaltTexture);
+    
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    
+    std::ifstream file("assets/asphalt.png", std::ios::binary);
+    if (file.is_open()) {
+        file.close();
+        
+        int texW, texH, texChannels;
+        unsigned char* texData = stbi_load("assets/asphalt.png", &texW, &texH, &texChannels, 4);
+        if (texData) {
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texW, texH, 0, GL_RGBA, GL_UNSIGNED_BYTE, texData);
+            glGenerateMipmap(GL_TEXTURE_2D);
+            stbi_image_free(texData);
+            m_textureLoaded = true;
+            LOGI("[Render] Asphalt texture loaded: %dx%d\n", texW, texH);
+        } else {
+            LOGI("[Render] stb_image failed to decode asphalt.png: %s\n", stbi_failure_reason());
+            m_textureLoaded = false;
+        }
+    } else {
+        LOGI("[Render] Texture file not found: assets/asphalt.png\n");
+        m_textureLoaded = false;
+    }
+    
+    if (!m_textureLoaded) {
+        unsigned char grayData[4] = {64, 64, 64, 255};
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, grayData);
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
+    
+    glBindTexture(GL_TEXTURE_2D, 0);
+    return true;
 }
 
 void Render::shutdown() {
@@ -330,6 +370,8 @@ void Render::draw(float time, const Vec3& camPos, float yaw, float pitch, int wi
 
     m_chunkManager.draw();
 
+    m_chunkManager.drawWires(viewMat, projMat, camPos.x, camPos.y, camPos.z, time);
+
     if (m_skyOk) {
         m_sky.drawSunBillboard(projMat, viewMat, camPos.x, camPos.y, camPos.z);
     }
@@ -373,8 +415,13 @@ void Render::drawCrosshair() {
     /* Простой шейдер для кроссхаира — белый цвет */
     static GLuint crossProg = 0;
     if (!crossProg) {
+#if defined(BEVOID_PLATFORM_ANDROID)
+        const char* vs = "#version 300 es\nlayout(location=0) in vec2 p;void main(){gl_Position=vec4(p,0,1);}";
+        const char* fs = "#version 300 es\nprecision mediump float;\nout vec4 c;void main(){c=vec4(1);}";
+#else
         const char* vs = "#version 330 core\nlayout(location=0) in vec2 p;void main(){gl_Position=vec4(p,0,1);}";
         const char* fs = "#version 330 core\nout vec4 c;void main(){c=vec4(1);}";
+#endif
         GLuint v = glCreateShader(GL_VERTEX_SHADER);
         glShaderSource(v, 1, &vs, nullptr);
         glCompileShader(v);
@@ -443,9 +490,13 @@ void Render::drawHand() {
         glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 5*sizeof(float), (void*)(2*sizeof(float)));
         glBindVertexArray(0);
 
-        /* Простой шейдер для руки */
+#if defined(BEVOID_PLATFORM_ANDROID)
+        const char* vs = "#version 300 es\nlayout(location=0) in vec2 p;layout(location=1) in vec3 c;out vec3 vc;void main(){gl_Position=vec4(p,0,1);vc=c;}";
+        const char* fs = "#version 300 es\nprecision mediump float;\nin vec3 vc;out vec4 fc;void main(){fc=vec4(vc,1);}";
+#else
         const char* vs = "#version 330 core\nlayout(location=0) in vec2 p;layout(location=1) in vec3 c;out vec3 vc;void main(){gl_Position=vec4(p,0,1);vc=c;}";
         const char* fs = "#version 330 core\nin vec3 vc;out vec4 fc;void main(){fc=vec4(vc,1);}";
+#endif
         GLuint v = glCreateShader(GL_VERTEX_SHADER);
         glShaderSource(v, 1, &vs, nullptr); glCompileShader(v);
         GLuint f = glCreateShader(GL_FRAGMENT_SHADER);

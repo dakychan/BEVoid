@@ -9,6 +9,8 @@ Chunk::~Chunk() { unload(); }
 void Chunk::load(const ChunkMesh& mesh) {
     if (m_loaded) unload();
 
+    m_wires = mesh.wires;
+
     glGenVertexArrays(1, &m_vao);
     glGenBuffers(1, &m_vbo);
     glGenBuffers(1, &m_ebo);
@@ -34,6 +36,9 @@ void Chunk::load(const ChunkMesh& mesh) {
     // attrib 2 — color
     glEnableVertexAttribArray(2);
     glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(ChunkVert), (void*)24);
+    // attrib 3 — texcoord
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(ChunkVert), (void*)36);
 
     glBindVertexArray(0);
     m_idxCount = (int)mesh.idx.size();

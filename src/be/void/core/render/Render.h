@@ -58,6 +58,8 @@ private:
     GLint  m_uSkyColor = -1;
     GLint  m_uHorizonColor = -1;
     GLint  m_uAmbient  = -1;
+    GLint  m_uAsphaltTexture = -1;
+    GLint  m_uUseAsphaltTexture = -1;
 
     world::ChunkManager m_chunkManager;
     SkyRenderer         m_sky;
@@ -66,6 +68,9 @@ private:
 
     GLuint m_crossVao = 0, m_crossVbo = 0;
     GLuint m_handVao = 0, m_handVbo = 0, m_handEbo = 0;
+    
+    GLuint m_asphaltTexture = 0;
+    bool   m_textureLoaded = false;
 };
 
 } // namespace be::void_::core::render

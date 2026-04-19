@@ -18,9 +18,11 @@
 #define BEVOID_GAME_SCREEN_H
 
 #include "screens/Screen.h"
-#include "core/Core.h"
-#include "com/bevoid/aporia/system/ApiRender.h"
-#include <memory>
+
+namespace be::void_ {
+    namespace core { class Core; }
+    namespace com::bevoid::aporia::system { class ApiRender; }
+}
 
 namespace be::void_::screens {
 
@@ -36,12 +38,13 @@ public:
 
     ScreenID nextScreen() const override { return m_nextScreen; }
 
-public:
-    std::unique_ptr<com::bevoid::aporia::system::ApiRender> m_api;
-    core::Core m_core;
-    bool m_initialized = false;
+    void setCore(core::Core* core) { m_core = core; }
+
+private:
+    core::Core* m_core = nullptr;
     float m_time = 0;
     ScreenID m_nextScreen = ScreenID::None;
+    bool m_escPressed = false;
 };
 
 } // namespace be::void_::screens

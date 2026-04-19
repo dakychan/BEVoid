@@ -16,11 +16,19 @@ struct ChunkVert {
     float x, y, z;     // позиция
     float nx, ny, nz;  // нормаль
     float r, g, b;     // цвет
+    float u, v;        // UV координаты для текстур
+};
+
+struct ChunkWire {
+    float x1, y1, z1;
+    float x2, y2, z2;
+    float sag;
 };
 
 struct ChunkMesh {
     std::vector<ChunkVert> verts;
     std::vector<uint32_t>  idx;
+    std::vector<ChunkWire> wires;
 };
 
 class Chunk {
@@ -35,12 +43,14 @@ public:
     void draw() const;
     void unload();
     bool loaded() const { return m_loaded; }
+    const std::vector<ChunkWire>& getWires() const { return m_wires; }
 
 private:
     int    m_cx, m_cz;
     GLuint m_vao = 0, m_vbo = 0, m_ebo = 0;
     int    m_idxCount = 0;
     bool   m_loaded = false;
+    std::vector<ChunkWire> m_wires;
 };
 
 } // namespace

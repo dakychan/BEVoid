@@ -61,7 +61,7 @@ inline constexpr float toMillimeters(Meters meters) {
 // Ограничения для биомов (не миллионы метров!)
 constexpr Meters MAX_BIOME_SIZE = 2000.0f;      // 2 км максимум
 constexpr Meters MIN_BIOME_SIZE = 500.0f;       // 500 м минимум
-constexpr Meters CHUNK_SIZE_METERS = 64.0f;     // Размер чанка в метрах
+constexpr Meters CHUNK_SIZE_METERS = 32.0f;     // Размер чанка в метрах
 
 } // namespace be::void_::physics::metrics
 

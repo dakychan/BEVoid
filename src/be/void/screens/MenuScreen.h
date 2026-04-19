@@ -25,6 +25,8 @@
     #include <GLES3/gl3.h>
 #else
     #include <glad/glad.h>
+    #define GLFW_INCLUDE_NONE
+    #include <GLFW/glfw3.h>
 #endif
 
 namespace be::void_::screens {
@@ -50,6 +52,7 @@ private:
     void drawButton(float y, const std::string& text, bool selected) const;
     void drawText(float x, float y, const std::string& text, float scale, float r, float g, float b) const;
     void initShaders();
+    void selectItem();
 
     std::vector<MenuItem> m_items;
     int m_selected = 0;
@@ -58,6 +61,10 @@ private:
     GLuint m_buttonProg = 0;
     GLuint m_textProg = 0;
     bool m_shadersInit = false;
+
+    bool m_upPressed = false;
+    bool m_downPressed = false;
+    bool m_enterPressed = false;
 };
 
 } // namespace be::void_::screens

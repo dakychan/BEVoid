@@ -20,8 +20,7 @@
 
 #include "physics/Cycles.h"
 #include <algorithm>
-#include <cstdlib>
-#include <ctime>
+#include <random>
 
 namespace be::void_::physics {
 
@@ -33,7 +32,7 @@ static float smoothstepC(float edge0, float edge1, float x) {
 }
 
 Cycles::Cycles() {
-    std::srand(static_cast<uint32_t>(std::time(nullptr)));
+    m_rng.seed(static_cast<uint32_t>(std::random_device{}()));
     pickNextEventThreshold();
 
     m_state.activeEvent = EventType_None;
@@ -56,8 +55,10 @@ void Cycles::update(float deltaTime) {
 
         if (m_activeEvent == EventType_None && m_dayCounter >= m_eventThreshold) {
             pickNextEventThreshold();
-            if (std::rand() % 100 < 30) {
-                switch (std::rand() % 4) {
+            std::uniform_int_distribution<int> pctDist(0, 99);
+            std::uniform_int_distribution<int> evtDist(0, 3);
+            if (pctDist(m_rng) < 30) {
+                switch (evtDist(m_rng)) {
                     case 0: triggerEvent(EventType_WhiteNight, 1.0f); break;
                     case 1: triggerEvent(EventType_PolarNight, 1.0f); break;
                     case 2: triggerEvent(EventType_Eclipse, 0.3f); break;
@@ -183,7 +184,8 @@ void Cycles::calcSkyColor() {
  * ============================================================ */
 
 void Cycles::pickNextEventThreshold() {
-    m_eventThreshold = m_dayCounter + 85 + (std::rand() % 36);
+    std::uniform_int_distribution<int> dist(0, 35);
+    m_eventThreshold = m_dayCounter + 85 + dist(m_rng);
 }
 
 void Cycles::triggerEvent(EventType type, float durationDays) {

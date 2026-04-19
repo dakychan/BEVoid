@@ -1,16 +1,21 @@
-/*
- * ============================================================
- * BEVoid Project
- * Copyright (c) 2025-2026 BEVoid Project
- * All rights reserved.
- * Licensed under the BEVoid Software License Agreement v1.0
- * See LICENSE and COPYRIGHT files in the repository root.
- * ============================================================
- */
-
 #include "screens/Screen.h"
+#include "screens/MenuScreen.h"
+#include "screens/GameScreen.h"
+#include "core/Core.h"
 
 namespace be::void_::screens {
+
+std::unique_ptr<Screen> ScreenManager::createScreen(ScreenID id) {
+    switch (id) {
+        case ScreenID::Menu: return std::make_unique<MenuScreen>();
+        case ScreenID::Game: {
+            auto gs = std::make_unique<GameScreen>();
+            gs->setCore(m_core);
+            return gs;
+        }
+        default: return nullptr;
+    }
+}
 
 void ScreenManager::setScreen(std::unique_ptr<Screen> screen) {
     if (m_screen) m_screen->onExit();
@@ -28,7 +33,7 @@ void ScreenManager::update(float dt) {
 
     auto next = m_screen->nextScreen();
     if (next != ScreenID::None) {
-        /* Переключение экрана — будет обработано извне */
+        setScreen(createScreen(next));
     }
 }
 

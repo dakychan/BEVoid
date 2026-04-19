@@ -24,7 +24,6 @@
 #include "network/Network.h"
 #include "physics/Physics.h"
 #include <memory>
-#include <thread>
 
 namespace be::void_::core {
 

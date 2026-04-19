@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <cmath>
 #include <string>
+#include <random>
 
 namespace be::void_::physics {
 
@@ -98,6 +99,7 @@ private:
     EventType m_activeEvent = EventType_None;
     float m_eventDuration = 0.0f;
     float m_eventTimer = 0.0f;
+    std::mt19937 m_rng;
 
     void pickNextEventThreshold();
     void triggerEvent(EventType type, float durationDays);

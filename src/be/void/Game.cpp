@@ -67,17 +67,19 @@ void Game::doRender() {
 void Game::doShutdown()   { shutdown(); }
 
 int Game::run(int /*argc*/, char** /*argv*/) {
+    std::cout << "[Game] run() start\n";
     if (!initOpenGL()) {
         std::cerr << "[Game] Failed to initialize OpenGL\n";
         return 1;
     }
+    std::cout << "[Game] OpenGL OK, calling Core::init()\n";
     if (!m_core.init()) {
         std::cerr << "[Game] Failed to init Core\n";
         shutdown();
         return 1;
     }
+    std::cout << "[Game] Core OK, entering main loop\n";
 
-    std::cout << "[Game] Starting main loop...\n";
     mainLoop();
 
     shutdown();
@@ -102,13 +104,10 @@ bool Game::initOpenGL() {
         return false;
     }
 
-    /* --- Мышь: GLFW callback с накоплением дельты --- */
-    glfwSetInputMode(m_api->getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-    glfwSetInputMode(m_api->getWindow(), GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+    glfwSetInputMode(m_api->getWindow(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 
     int w, h;
     glfwGetWindowSize(m_api->getWindow(), &w, &h);
-    glfwSetCursorPos(m_api->getWindow(), w * 0.5, h * 0.5);
 
     static double lastX = w * 0.5, lastY = h * 0.5;
     glfwSetCursorPosCallback(m_api->getWindow(), [](GLFWwindow*, double x, double y) {
@@ -120,20 +119,16 @@ bool Game::initOpenGL() {
         lastY = y;
     });
 
-    /* Клавиатура */
     glfwSetKeyCallback(m_api->getWindow(), [](GLFWwindow* win, int key, int, int action, int) {
         if (g_game) g_game->m_core.getInput().onKey(key, action);
 
-        /* ESC — освободить курсор */
         if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
-            g_mouseInputEnabled = false;
-            glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-            int ww, hh;
-            glfwGetWindowSize(win, &ww, &hh);
-            glfwSetCursorPos(win, ww * 0.5, hh * 0.5);
+            if (g_mouseInputEnabled) {
+                g_mouseInputEnabled = false;
+                glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            }
         }
 
-        /* F11 — фуллскрин */
         if (key == GLFW_KEY_F11 && action == GLFW_PRESS) {
             if (g_game && g_game->getApi()) {
                 g_game->getApi()->toggleFullscreen();
@@ -141,15 +136,16 @@ bool Game::initOpenGL() {
         }
     });
 
-    /* ЛКМ — захватить снова */
     glfwSetMouseButtonCallback(m_api->getWindow(), [](GLFWwindow* win, int button, int action, int) {
         if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS && !g_mouseInputEnabled) {
-            g_mouseInputEnabled = true;
-            glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-            glfwSetInputMode(win, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
-            int ww, hh;
-            glfwGetWindowSize(win, &ww, &hh);
-            glfwSetCursorPos(win, ww * 0.5, hh * 0.5);
+            if (g_game && !g_game->m_inMenu) {
+                g_mouseInputEnabled = true;
+                glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+                glfwSetInputMode(win, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+                int ww, hh;
+                glfwGetWindowSize(win, &ww, &hh);
+                glfwSetCursorPos(win, ww * 0.5, hh * 0.5);
+            }
         }
     });
 #endif
@@ -168,14 +164,8 @@ bool Game::initOpenGL() {
 
     glEnable(GL_DEPTH_TEST);
 
-#if !defined(BEVOID_PLATFORM_ANDROID)
-    m_api->setRenderCallback([](void* userData) {
-        auto* game = static_cast<Game*>(userData);
-        int ww = game->getApi()->getWidth();
-        int hh = game->getApi()->getHeight();
-        game->m_core.render(game->m_time, ww, hh);
-    }, this);
-#endif
+    m_screenMgr.setCore(&m_core);
+    m_screenMgr.setScreen(m_screenMgr.createScreen(screens::ScreenID::Menu));
 
     m_running = true;
     return true;
@@ -197,22 +187,48 @@ void Game::mainLoop() {
     while (m_running && !m_api->shouldClose()) {
         m_api->pollEvents();
 
-        if (g_mouseInputEnabled && (std::abs(g_mouseAccumX) > 0.01 || std::abs(g_mouseAccumY) > 0.01)) {
-            m_core.getInput().onMouseMove(g_mouseAccumX, g_mouseAccumY);
-            g_mouseAccumX = 0;
-            g_mouseAccumY = 0;
-        }
-
         auto now = std::chrono::steady_clock::now();
         float delta = std::chrono::duration<float>(now - lastTick).count();
         if (delta > 0.1f) delta = 0.1f;
         lastTick = now;
         m_time += delta;
 
-        m_core.update(delta);
-        int w = m_api->getWidth();
-        int h = m_api->getHeight();
-        m_core.render(m_time, w, h);
+        bool wasInMenu = m_inMenu;
+        m_inMenu = (m_screenMgr.currentScreen() && 
+                     m_screenMgr.currentScreen()->id() == screens::ScreenID::Menu);
+
+        if (!m_inMenu) {
+            if (g_mouseInputEnabled && (std::abs(g_mouseAccumX) > 0.01 || std::abs(g_mouseAccumY) > 0.01)) {
+                m_core.getInput().onMouseMove(g_mouseAccumX, g_mouseAccumY);
+                g_mouseAccumX = 0;
+                g_mouseAccumY = 0;
+            }
+        }
+
+        m_screenMgr.update(delta);
+
+        bool nowInMenu = (m_screenMgr.currentScreen() && 
+                           m_screenMgr.currentScreen()->id() == screens::ScreenID::Menu);
+
+        if (wasInMenu && !nowInMenu) {
+            g_mouseInputEnabled = true;
+            glfwSetInputMode(m_api->getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            glfwSetInputMode(m_api->getWindow(), GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+        }
+        if (!wasInMenu && nowInMenu) {
+            g_mouseInputEnabled = false;
+            glfwSetInputMode(m_api->getWindow(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        }
+
+        m_inMenu = nowInMenu;
+
+        if (m_inMenu) {
+            m_screenMgr.render(m_time);
+        } else {
+            int w = m_api->getWidth();
+            int h = m_api->getHeight();
+            m_core.render(m_time, w, h);
+        }
 
         m_api->swapBuffers();
     }

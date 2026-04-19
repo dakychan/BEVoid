@@ -58,13 +58,10 @@ void Physics::step(PhysicsState& state, Vec3 inputAccel, float dt, bool wantJump
 
     float groundY = terrainHeight + 1.7f;
     
-    // Плавное приземление вместо телепорта
     if (state.position.y <= groundY) {
-        // Если игрок близко к земле, плавно опускаем
         if (state.position.y > groundY - 0.5f) {
-            state.position.y = groundY;
+            state.position.y += (groundY - state.position.y) * std::min(dt * 20.0f, 1.0f);
         } else {
-            // Если падает быстро, просто останавливаем
             state.position.y = groundY;
         }
         state.velocity.y = 0;

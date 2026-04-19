@@ -4,6 +4,9 @@ in vec3 FragPos;
 in vec3 Normal;
 in vec3 Color;
 in float Height;
+in vec2 TexCoord;
+in float isRoad;
+in float isWater;
 
 out vec4 fragColor;
 
@@ -14,6 +17,8 @@ uniform vec3 uHorizonColor;
 uniform float uAmbient;
 uniform vec3 uCamPos;
 uniform float uTime;
+uniform sampler2D uAsphaltTexture;
+uniform bool uUseAsphaltTexture;
 
 float hash(vec3 p){
     p = fract(p * vec3(.1031,.1030,.0973));
@@ -40,7 +45,14 @@ void main() {
     vec3 norm = normalize(Normal);
     float diff = max(dot(norm, uSunDir), 0.0);
     vec3 lighting = uAmbient * uSkyColor + diff * uSunColor;
-    vec3 result = Color * lighting;
+    
+    vec3 result;
+    if (isRoad > 0.5 && uUseAsphaltTexture) {
+        vec4 asphalt = texture(uAsphaltTexture, TexCoord * 10.0);
+        result = asphalt.rgb * lighting;
+    } else {
+        result = Color * lighting;
+    }
 
     float dist = length(FragPos - uCamPos);
     float fogFactor = clamp((dist - 80.0) / 200.0, 0.0, 1.0);

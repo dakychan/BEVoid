@@ -3,10 +3,9 @@
 
 #include "Chunk.h"
 #include "Biome.h"
+#include "Structures.h"
 #include <unordered_map>
 #include <vector>
-#include <thread>
-#include <mutex>
 #include <atomic>
 #include <memory>
 
@@ -19,10 +18,13 @@ public:
 
     void update(float px, float pz, float dt);
     void draw() const;
+    void drawWires(const float* viewMat, const float* projMat, float camX, float camY, float camZ, float time) const;
     float terrainHeight(float wx, float wz) const;
 
     void setRenderDistance(int r) { m_rdist = r; }
     int  renderDistance() const   { return m_rdist; }
+    
+    StructureGenerator& getStructures() { return m_structures; }
 
 private:
     struct Key {
@@ -31,28 +33,26 @@ private:
     };
     struct KeyHash {
         size_t operator()(Key k) const {
-            return std::hash<int>()(k.x) ^ (std::hash<int>()(k.z) << 16);
+            return std::hash<int>()(k.x) ^ (std::hash<int>()(k.z) + 0x9e3779b9 + (std::hash<int>()(k.x) << 6) + (std::hash<int>()(k.x) >> 2));
         }
-    };
-
-    struct Pending {
-        int cx, cz;
-        ChunkMesh mesh;
     };
 
     void buildChunk(int cx, int cz);
     void flushPending();
+    void generateChunkStructures(ChunkMesh& mesh, int cx, int cz);
 
     uint32_t m_seed;
     int      m_rdist = 8;
     BiomeNoise m_biome;
+    StructureGenerator m_structures;
 
     std::unordered_map<Key, std::unique_ptr<Chunk>, KeyHash> m_chunks;
-    std::vector<Pending> m_pending;
-    std::mutex           m_mtx;
 
     int    m_lastCx = 0x7FFFFFFF, m_lastCz = 0x7FFFFFFF;
     float  m_acc = 0;
+    
+    bool   m_depotGenerated = false;
+    bool   m_structuresGenerated = false;
 };
 
 } // namespace

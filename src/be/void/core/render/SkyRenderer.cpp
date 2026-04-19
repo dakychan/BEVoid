@@ -36,6 +36,63 @@ bool SkyRenderer::init() {
     std::string vsSrc = loadSkyShader("shaders/sky.vert");
     std::string fsSrc = loadSkyShader("shaders/sky.frag");
 
+#if defined(BEVOID_PLATFORM_ANDROID)
+    static const char* FALLBACK_VS =
+        "#version 300 es\n"
+        "layout(location = 0) in vec3 aPos;\n"
+        "out vec3 vDir;\n"
+        "out vec3 vWorldPos;\n"
+        "uniform mat4 uView;\n"
+        "uniform mat4 uProj;\n"
+        "uniform vec3 uCamWorldPos;\n"
+        "void main() {\n"
+        "    vDir = normalize(aPos);\n"
+        "    vWorldPos = uCamWorldPos + aPos * 500.0;\n"
+        "    gl_Position = uProj * mat4(mat3(uView)) * vec4(aPos * 500.0, 1.0);\n"
+        "    gl_Position.z = gl_Position.w * 0.999;\n"
+        "}\n";
+
+    static const char* FALLBACK_FS =
+        "#version 300 es\n"
+        "precision mediump float;\n"
+        "in vec3 vDir;\n"
+        "in vec3 vWorldPos;\n"
+        "out vec4 fragColor;\n"
+        "uniform float uTime;\n"
+        "uniform vec3 uTopColor;\n"
+        "uniform vec3 uHorizonColor;\n"
+        "uniform vec3 uSunColor;\n"
+        "uniform vec3 uSunDir;\n"
+        "uniform float uSunElevation;\n"
+        "uniform vec3 uMoonColor;\n"
+        "uniform vec3 uMoonDir;\n"
+        "uniform vec3 uCamWorldPos;\n"
+        "float hash2(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}\n"
+        "float noise2D(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hash2(i),hash2(i+vec2(1,0)),f.x),mix(hash2(i+vec2(0,1)),hash2(i+vec2(1,1)),f.x),f.y);}\n"
+        "float fbm2(vec2 p){float v=0.0,a=0.5;for(int i=0;i<3;i++){v+=noise2D(p)*a;p*=2.0;a*=0.5;}return v;}\n"
+        "void main() {\n"
+        "    vec3 dir = normalize(vDir);\n"
+        "    float h = dir.y;\n"
+        "    float t = pow(max(h, 0.0), 0.45);\n"
+        "    vec3 sky = mix(uHorizonColor, uTopColor, t);\n"
+        "    float sdot = dot(dir, uSunDir);\n"
+        "    float sunGlow = smoothstep(-0.1, 0.05, uSunElevation);\n"
+        "    sky = mix(sky, uSunColor, pow(max(sdot, 0.0), 4.0) * 0.3 * sunGlow);\n"
+        "    sky += uSunColor * smoothstep(0.96, 1.0, max(sdot, 0.0)) * 3.0 * sunGlow;\n"
+        "    float belowGlow = smoothstep(0.0, -0.15, uSunElevation);\n"
+        "    sky += uSunColor * pow(max(sdot, 0.0), 2.0) * 0.15 * belowGlow;\n"
+        "    float moonF = smoothstep(0.05, -0.15, uSunElevation);\n"
+        "    float mdot = dot(dir, uMoonDir);\n"
+        "    if (moonF > 0.01) {\n"
+        "        float ma = acos(clamp(mdot, -1.0, 1.0));\n"
+        "        vec2 muv = dir.xy / max(mdot, 0.001);\n"
+        "        float surf = smoothstep(0.35, 0.65, fbm2(muv * 8.0));\n"
+        "        float md = (1.0 - smoothstep(0.024, 0.033, ma)) * surf;\n"
+        "        sky += uMoonColor * 1.5 * (md * 2.0 + pow(max(mdot, 0.0), 32.0) * 0.12) * moonF;\n"
+        "    }\n"
+        "    fragColor = vec4(sky, 1.0);\n"
+        "}\n";
+#else
     static const char* FALLBACK_VS =
         "#version 330 core\n"
         "layout(location = 0) in vec3 aPos;\n"
@@ -90,7 +147,7 @@ bool SkyRenderer::init() {
         "    }\n"
         "    fragColor = vec4(sky, 1.0);\n"
         "}\n";
-
+#endif
     const char* vs = FALLBACK_VS;
     const char* fs = FALLBACK_FS;
     std::string vsStr, fsStr;
@@ -200,15 +257,45 @@ bool SkyRenderer::init() {
     glBindVertexArray(0);
 
     // Шейдер для солнца
+#if defined(BEVOID_PLATFORM_ANDROID)
+    const char* sunVS =
+        "#version 300 es\n"
+        "layout(location=0) in vec4 aPosUV;\n"
+        "out vec2 vUV;\n"
+        "uniform mat4 uVP;\n"
+        "uniform vec3 uCenter;\n"
+        "uniform vec3 uRight;\n"
+        "uniform vec3 uUp;\n"
+        "uniform float uSize;\n"
+        "void main(){\n"
+        "    vUV = aPosUV.zw;\n"
+        "    vec3 worldPos = uCenter + aPosUV.x * uRight * uSize + aPosUV.y * uUp * uSize;\n"
+        "    gl_Position = uVP * vec4(worldPos, 1.0);\n"
+        "}\n";
+    const char* sunFS =
+        "#version 300 es\n"
+        "precision mediump float;\n"
+        "in vec2 vUV;\n"
+        "out vec4 fragColor;\n"
+        "uniform vec3 uColor;\n"
+        "void main(){\n"
+        "    vec2 c = vUV - 0.5;\n"
+        "    float d = length(c);\n"
+        "    float core = 1.0 - smoothstep(0.35, 0.5, d);\n"
+        "    float glow = pow(1.0 - d, 3.0) * 0.6;\n"
+        "    float alpha = max(core, glow);\n"
+        "    fragColor = vec4(uColor * (1.0 + glow), alpha);\n"
+        "}\n";
+#else
     const char* sunVS =
         "#version 330 core\n"
         "layout(location=0) in vec4 aPosUV;\n"
         "out vec2 vUV;\n"
         "uniform mat4 uVP;\n"
-        "uniform vec3 uCenter;   // мировая позиция солнца\n"
-        "uniform vec3 uRight;    // правый вектор камеры\n"
-        "uniform vec3 uUp;       // верхний вектор камеры\n"
-        "uniform float uSize;    // размер диска\n"
+        "uniform vec3 uCenter;\n"
+        "uniform vec3 uRight;\n"
+        "uniform vec3 uUp;\n"
+        "uniform float uSize;\n"
         "void main(){\n"
         "    vUV = aPosUV.zw;\n"
         "    vec3 worldPos = uCenter + aPosUV.x * uRight * uSize + aPosUV.y * uUp * uSize;\n"
@@ -222,12 +309,12 @@ bool SkyRenderer::init() {
         "void main(){\n"
         "    vec2 c = vUV - 0.5;\n"
         "    float d = length(c);\n"
-        "    // Мягкий диск с glow\n"
         "    float core = 1.0 - smoothstep(0.35, 0.5, d);\n"
         "    float glow = pow(1.0 - d, 3.0) * 0.6;\n"
         "    float alpha = max(core, glow);\n"
         "    fragColor = vec4(uColor * (1.0 + glow), alpha);\n"
         "}\n";
+#endif
 
     auto compileShader = [](GLuint type, const char* src) -> GLuint {
         GLuint s = glCreateShader(type);

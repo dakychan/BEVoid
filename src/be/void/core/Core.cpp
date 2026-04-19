@@ -37,13 +37,16 @@ bool Core::init() {
 
     m_input.setListener(&m_movement);
 
+    LOGI("[Core] initShaders...\n");
     if (!m_render.initShaders()) {
         LOGE("[Core] Failed to init shaders\n");
         return false;
     }
+    LOGI("[Core] initSky...\n");
     if (!m_render.initSky()) {
         LOGI("[Core] WARNING: Sky init failed, sky will be disabled\n");
     }
+    LOGI("[Core] initChunks...\n");
     if (!m_render.initChunks()) {
         LOGE("[Core] Failed to init chunks\n");
         return false;

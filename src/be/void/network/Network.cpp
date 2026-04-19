@@ -20,9 +20,9 @@
 namespace be::void_::network {
 
 bool Network::connect(const char* host, int port) {
-    std::cout << "[Network] connect(" << host << ":" << port << ") — stub\n";
-    m_connected = true;
-    return true;
+    std::cout << "[Network] connect(" << host << ":" << port << ") — not implemented (stub)\n";
+    m_connected = false;
+    return false;
 }
 
 void Network::disconnect() {

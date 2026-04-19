@@ -18,6 +18,7 @@
 #define BEVOID_GAME_H
 
 #include "core/Core.h"
+#include "screens/Screen.h"
 #include "com/bevoid/aporia/system/ApiRender.h"
 #include <memory>
 
@@ -45,8 +46,10 @@ private:
 
     std::unique_ptr<com::bevoid::aporia::system::ApiRender> m_api;
     core::Core m_core;
+    screens::ScreenManager m_screenMgr;
     float  m_time = 0.0f;
     bool   m_running = false;
+    bool   m_inMenu = true;
 };
 
 } // namespace be::void_

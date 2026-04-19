@@ -1,25 +1,10 @@
-/*
- * ============================================================
- * BEVoid Project
- * Copyright (c) 2025-2026 BEVoid Project
- * All rights reserved.
- * Licensed under the BEVoid Software License Agreement v1.0
- * See LICENSE and COPYRIGHT files in the repository root.
- * ============================================================
- */
-
-/*
- * be.void.screens — Screen System
- *
- * Меню → Игра. Простой переключатель экранов.
- */
-
 #ifndef BEVOID_SCREEN_H
 #define BEVOID_SCREEN_H
 
 #include <memory>
 
 namespace be::void_ {
+namespace core { class Core; }
 namespace screens {
 
 enum class ScreenID {
@@ -28,22 +13,7 @@ enum class ScreenID {
     Game
 };
 
-class Screen {
-public:
-    virtual ~Screen() = default;
-    virtual ScreenID id() const = 0;
-
-    /* Вызываются при активации/деактивации */
-    virtual void onEnter()  {}
-    virtual void onExit()   {}
-
-    /* Главный цикл */
-    virtual void update(float dt) = 0;
-    virtual void render(float time) = 0;
-
-    /* Возвращает true = переключить экран */
-    virtual ScreenID nextScreen() const { return ScreenID::None; }
-};
+class Screen;
 
 class ScreenManager {
 public:
@@ -53,8 +23,27 @@ public:
     void update(float dt);
     void render(float time);
 
+    std::unique_ptr<Screen> createScreen(ScreenID id);
+
+    void setCore(core::Core* core) { m_core = core; }
+
 private:
     std::unique_ptr<Screen> m_screen;
+    core::Core* m_core = nullptr;
+};
+
+class Screen {
+public:
+    virtual ~Screen() = default;
+    virtual ScreenID id() const = 0;
+
+    virtual void onEnter()  {}
+    virtual void onExit()   {}
+
+    virtual void update(float dt) = 0;
+    virtual void render(float time) = 0;
+
+    virtual ScreenID nextScreen() const { return ScreenID::None; }
 };
 
 } // namespace screens

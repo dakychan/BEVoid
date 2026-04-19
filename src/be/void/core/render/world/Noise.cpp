@@ -36,10 +36,6 @@ float Noise::sample(float x, float y) const {
     float x2 = x0 - 1 + 2*G2,  y2 = y0 - 1 + 2*G2;
     int ii = i & 255, jj = j & 255;
     float n0=0, n1=0, n2=0;
-    auto step = [&](float sx, float sy, int gi) {
-        float tt = 0.5f - sx*sx - sy*sy;
-        if (tt > 0) { tt *= tt; n0 += tt*tt*dot(&GRAD[gi*2], sx, sy); }
-    };
     float t0 = 0.5f - x0*x0 - y0*y0;
     if (t0 > 0) { t0*=t0; n0 = t0*t0*dot(&GRAD[(perm[ii+perm[jj]]&15)*2], x0, y0); }
     float t1 = 0.5f - x1*x1 - y1*y1;
