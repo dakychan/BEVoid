@@ -47,6 +47,8 @@ public:
     network::Network&   getNetwork()  { return m_network;  }
     physics::Physics&   getPhysics()  { return m_physics;  }
 
+    void setSeed(uint32_t seed) { m_render.setSeed(seed); }
+
 private:
     render::Render     m_render;
     movement::Movement m_movement;

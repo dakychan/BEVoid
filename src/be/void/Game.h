@@ -39,6 +39,13 @@ public:
     core::Core& getCore()  { return m_core;  }
     com::bevoid::aporia::system::ApiRender* getApi() { return m_api.get(); }
 
+    screens::ScreenManager& getScreenMgr() { return m_screenMgr; }
+    float getTime() const { return m_time; }
+    bool isInMenu() const { return m_inMenu; }
+
+    void addTime(float dt) { m_time += dt; }
+    void setInMenu(bool v) { m_inMenu = v; }
+
 private:
     bool   initOpenGL();
     void   shutdown();

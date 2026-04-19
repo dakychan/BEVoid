@@ -35,6 +35,9 @@ public:
     float getCrouchOffset() const { return m_crouchOffset; }
     bool  onGround() const { return m_state.onGround; }
 
+    void setYaw(float y) { m_yaw = y; }
+    void setPitch(float p) { m_pitch = p; }
+
     physics::PhysicsState& getState() { return m_state; }
 
 private:

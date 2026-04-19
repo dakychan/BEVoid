@@ -20,6 +20,7 @@ set(SOURCES_GAME
     src/be/void/core/render/world/Structures.cpp
     src/be/void/core/render/font/FontAtlas.cpp
     src/be/void/core/render/font/FontRenderer.cpp
+    src/be/void/world/WorldManager.cpp
     src/be/void/core/movement/Movement.cpp
     src/be/void/core/input/Input.cpp
     src/be/void/network/Network.cpp
@@ -28,6 +29,8 @@ set(SOURCES_GAME
     src/be/void/screens/Screen.cpp
     src/be/void/screens/MenuScreen.cpp
     src/be/void/screens/GameScreen.cpp
+    src/be/void/screens/WorldsScreen.cpp
+    src/be/void/screens/NewWorldScreen.cpp
     src/third_party/stb/stb_image_impl.cpp
 )
 
@@ -47,6 +50,8 @@ set(HEADERS_GAME
     src/be/void/core/render/font/Glyph.h
     src/be/void/core/render/font/FontAtlas.h
     src/be/void/core/render/font/FontRenderer.h
+    src/be/void/world/WorldMeta.h
+    src/be/void/world/WorldManager.h
     src/be/void/physics/metrics/Units.h
     src/be/void/core/movement/Movement.h
     src/be/void/core/input/Input.h
@@ -56,6 +61,8 @@ set(HEADERS_GAME
     src/be/void/screens/Screen.h
     src/be/void/screens/MenuScreen.h
     src/be/void/screens/GameScreen.h
+    src/be/void/screens/WorldsScreen.h
+    src/be/void/screens/NewWorldScreen.h
 )
 
 set(SOURCES_SYSTEM
@@ -82,20 +89,22 @@ set(HEADERS_DRIVERS
 )
 
 # ============================================================
-# Glad — OpenGL loader (всегда нужен)
+# Glad — OpenGL loader (desktop only)
 # ============================================================
-set(GLAD_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/third_party/glad)
-if(EXISTS "${GLAD_DIR}/glad.c")
-    add_library(glad STATIC ${GLAD_DIR}/glad.c)
-    target_include_directories(glad PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/third_party
-        ${GLAD_DIR}
-    )
-    if(NOT WIN32 AND NOT ANDROID)
-        target_link_libraries(glad PRIVATE ${CMAKE_DL_LIBS})
+if(NOT ANDROID)
+    set(GLAD_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/third_party/glad)
+    if(EXISTS "${GLAD_DIR}/glad.c")
+        add_library(glad STATIC ${GLAD_DIR}/glad.c)
+        target_include_directories(glad PUBLIC
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/third_party
+            ${GLAD_DIR}
+        )
+        if(NOT WIN32)
+            target_link_libraries(glad PRIVATE ${CMAKE_DL_LIBS})
+        endif()
+    else()
+        message(FATAL_ERROR "glad.c not found! Generate from https://glad.dav1d.de/")
     endif()
-else()
-    message(FATAL_ERROR "glad.c not found! Generate from https://glad.dav1d.de/")
 endif()
 
 # ============================================================
@@ -126,12 +135,15 @@ if(ANDROID)
     add_library(bevoid SHARED
         ${SOURCES_GAME} ${HEADERS_GAME}
         ${SOURCES_SYSTEM} ${HEADERS_SYSTEM}
-        ${SOURCES_DRIVERS} ${HEADERS_DRIVERS}
+        src/drivers/EglWindowDriver.cpp
+        src/drivers/IWindowDriver.h
+        src/drivers/EglWindowDriver.h
+        src/drivers/IRenderer.h
         ${CMAKE_ANDROID_NDK}/sources/android/native_app_glue/android_native_app_glue.c
     )
 
     target_link_libraries(bevoid PRIVATE
-        ${log-lib} ${android-lib} glad EGL GLESv3
+        ${log-lib} ${android-lib} EGL GLESv3
     )
 
     target_include_directories(bevoid PRIVATE

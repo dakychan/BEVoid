@@ -47,6 +47,8 @@ static bool  g_mouseInputEnabled = true;
 
 static double g_mouseAccumX = 0;
 static double g_mouseAccumY = 0;
+static float g_lastTouchX = 0;
+static float g_lastTouchY = 0;
 
 Game::Game() {
     g_game = this;
@@ -194,8 +196,8 @@ void Game::mainLoop() {
         m_time += delta;
 
         bool wasInMenu = m_inMenu;
-        m_inMenu = (m_screenMgr.currentScreen() && 
-                     m_screenMgr.currentScreen()->id() == screens::ScreenID::Menu);
+        m_inMenu = (m_screenMgr.currentScreen() &&
+                     m_screenMgr.currentScreen()->id() != screens::ScreenID::Game);
 
         if (!m_inMenu) {
             if (g_mouseInputEnabled && (std::abs(g_mouseAccumX) > 0.01 || std::abs(g_mouseAccumY) > 0.01)) {
@@ -207,8 +209,8 @@ void Game::mainLoop() {
 
         m_screenMgr.update(delta);
 
-        bool nowInMenu = (m_screenMgr.currentScreen() && 
-                           m_screenMgr.currentScreen()->id() == screens::ScreenID::Menu);
+        bool nowInMenu = (m_screenMgr.currentScreen() &&
+                           m_screenMgr.currentScreen()->id() != screens::ScreenID::Game);
 
         if (wasInMenu && !nowInMenu) {
             g_mouseInputEnabled = true;
@@ -279,16 +281,46 @@ static int32_t handleInput(android_app*, AInputEvent* event) {
         int32_t keyCode = AKeyEvent_getKeyCode(event);
         int32_t action = AKeyEvent_getAction(event);
         g_androidGame->getCore().getInput().onKey(keyCode, action);
+
+        auto& ts = be::void_::screens::getTouchState();
         if (keyCode == AKEYCODE_BACK && action == AKEY_EVENT_ACTION_DOWN) {
-            g_running = false;
+            ts.backPressed = true;
+            return 1;
+        }
+        if (keyCode == AKEYCODE_BACK && action == AKEY_EVENT_ACTION_UP) {
+            ts.backPressed = false;
             return 1;
         }
         return 1;
     }
     if (type == AINPUT_EVENT_TYPE_MOTION) {
+        int32_t action = AMotionEvent_getAction(event);
+        int32_t actionMasked = action & AMOTION_EVENT_ACTION_MASK;
+
         float x = AMotionEvent_getX(event, 0);
         float y = AMotionEvent_getY(event, 0);
-        g_androidGame->getCore().getInput().onMouseMove(x * 0.01f, y * 0.01f);
+
+        int winW = g_androidGame->getApi()->getWidth();
+        int winH = g_androidGame->getApi()->getHeight();
+
+        auto& ts = be::void_::screens::getTouchState();
+        ts.ndcX = (2.0f * x / (float)winW) - 1.0f;
+        ts.ndcY = 1.0f - (2.0f * y / (float)winH);
+
+        if (actionMasked == AMOTION_EVENT_ACTION_DOWN) {
+            ts.touched = true;
+            ts.tapped = true;
+        } else if (actionMasked == AMOTION_EVENT_ACTION_UP) {
+            ts.touched = false;
+        } else if (actionMasked == AMOTION_EVENT_ACTION_MOVE) {
+            if (!g_mouseInputEnabled && !g_androidGame->isInMenu()) {
+                g_mouseAccumX += (x - g_lastTouchX) * 0.5f;
+                g_mouseAccumY += (y - g_lastTouchY) * 0.5f;
+            }
+        }
+
+        g_lastTouchX = x;
+        g_lastTouchY = y;
         return 1;
     }
     return 0;
@@ -307,16 +339,14 @@ extern "C" void android_main(struct android_app* app) {
     if (!game.doInitOpenGL()) { ALOGE("OpenGL init failed"); return; }
     if (!game.doInitCore())   { ALOGE("Core init failed"); return; }
 
-    game.getApi()->setRenderCallback([](void* userData) {
-        if (g_androidGame) g_androidGame->doRender();
-    }, nullptr);
-
     ALOGI("Starting main loop");
+    auto lastTick = std::chrono::steady_clock::now();
+
     while (g_running) {
         int events;
         struct android_poll_source* source;
 
-        int timeoutMs = g_androidGame->getApi()->getHeight() > 0 ? 0 : -1;
+        int timeoutMs = game.getApi()->getHeight() > 0 ? 0 : -1;
 
         while (ALooper_pollAll(timeoutMs, nullptr, &events, (void**)&source) >= 0) {
             if (source) {
@@ -324,8 +354,38 @@ extern "C" void android_main(struct android_app* app) {
             }
         }
 
-        if (g_androidGame->getApi()->getHeight() > 0) {
-            game.getApi()->callRenderCallback();
+        int winW = game.getApi()->getWidth();
+        int winH = game.getApi()->getHeight();
+        if (winW > 0 && winH > 0) {
+            auto now = std::chrono::steady_clock::now();
+            float delta = std::chrono::duration<float>(now - lastTick).count();
+            if (delta > 0.1f) delta = 0.1f;
+            lastTick = now;
+
+            game.addTime(delta);
+
+            bool wasInMenu = game.isInMenu();
+            bool nowInMenu = (game.getScreenMgr().currentScreen() != nullptr &&
+                             game.getScreenMgr().currentScreen()->id() != screens::ScreenID::Game);
+            game.setInMenu(nowInMenu);
+
+            if (g_mouseInputEnabled && !nowInMenu) {
+                if (std::abs(g_mouseAccumX) > 0.01 || std::abs(g_mouseAccumY) > 0.01) {
+                    game.getCore().getInput().onMouseMove(g_mouseAccumX, g_mouseAccumY);
+                    g_mouseAccumX = 0;
+                    g_mouseAccumY = 0;
+                }
+            }
+
+            game.getScreenMgr().update(delta);
+
+            if (nowInMenu) {
+                glViewport(0, 0, winW, winH);
+                game.getScreenMgr().render(game.getTime());
+            } else {
+                game.getCore().render(game.getTime(), winW, winH);
+            }
+
             game.getApi()->swapBuffers();
         }
     }

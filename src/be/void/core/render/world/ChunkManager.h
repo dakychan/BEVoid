@@ -21,6 +21,9 @@ public:
     void drawWires(const float* viewMat, const float* projMat, float camX, float camY, float camZ, float time) const;
     float terrainHeight(float wx, float wz) const;
 
+    void setSeed(uint32_t seed);
+    uint32_t getSeed() const { return m_seed; }
+
     void setRenderDistance(int r) { m_rdist = r; }
     int  renderDistance() const   { return m_rdist; }
     

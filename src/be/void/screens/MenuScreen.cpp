@@ -32,12 +32,12 @@ namespace be::void_::screens {
 
 void MenuScreen::onEnter() {
     m_items = {
-        { "Play", false },
-        { "Create World", false },
+        { "Worlds", false },
+        { "MultiPlayer", false },
         { "Settings", false },
         { "Exit", false },
     };
-    m_selected = 0;
+    m_hoveredItem = -1;
     m_nextScreen = ScreenID::None;
     initShaders();
 
@@ -82,44 +82,30 @@ void MenuScreen::update(float /*dt*/) {
         }
     }
 
-    if (m_hoveredItem >= 0) {
-        m_selected = m_hoveredItem;
-    }
-
     bool leftNow = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
     if (leftNow && !m_mouseLeftPressed && m_hoveredItem >= 0) {
-        m_selected = m_hoveredItem;
-        selectItem();
+        selectItem(m_hoveredItem);
     }
     m_mouseLeftPressed = leftNow;
-
-    bool upNow = glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS ||
-                 glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS;
-    bool downNow = glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS ||
-                   glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS;
-    bool enterNow = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS ||
-                    glfwGetKey(window, GLFW_KEY_ENTER) == GLFW_PRESS;
-
-    if (upNow && !m_upPressed) {
-        m_selected = (m_selected - 1 + (int)m_items.size()) % (int)m_items.size();
+#else
+    auto& ts = getTouchState();
+    if (ts.tapped) {
+        ts.tapped = false;
+        for (size_t i = 0; i < m_items.size(); i++) {
+            float btnY = BTN_START_Y - (float)i * BTN_SPACING;
+            if (ts.ndcX >= BTN_X1 && ts.ndcX <= BTN_X2 &&
+                ts.ndcY >= btnY - BTN_HALF_H && ts.ndcY <= btnY + BTN_HALF_H) {
+                selectItem((int)i);
+                break;
+            }
+        }
     }
-    m_upPressed = upNow;
-
-    if (downNow && !m_downPressed) {
-        m_selected = (m_selected + 1) % (int)m_items.size();
-    }
-    m_downPressed = downNow;
-
-    if (enterNow && !m_enterPressed) {
-        selectItem();
-    }
-    m_enterPressed = enterNow;
 #endif
 }
 
-void MenuScreen::selectItem() {
-    switch (m_selected) {
-        case 0: m_nextScreen = ScreenID::Game; break;
+void MenuScreen::selectItem(int idx) {
+    switch (idx) {
+        case 0: m_nextScreen = ScreenID::Worlds; break;
         case 1: break;
         case 2: break;
         case 3: break;
@@ -139,11 +125,11 @@ void MenuScreen::render(float time) {
 
     for (size_t i = 0; i < m_items.size(); i++) {
         float y = BTN_START_Y - (float)i * BTN_SPACING;
-        drawButton(y, m_items[i].text, (int)i == m_selected);
+        drawButton(y, m_items[i].text, (int)i == m_hoveredItem);
     }
 
-    drawMsdfText(0.0f, -0.85f, "WASD / Mouse - navigation | Enter / Click - select", 0.02f,
-                 0.5f, 0.5f, 0.5f);
+    drawMsdfText(0.0f, -0.85f, "Copyright BEVoid Project. All rights reserved.", 0.018f,
+                 0.35f, 0.35f, 0.35f);
 
     glEnable(GL_DEPTH_TEST);
 }
@@ -215,13 +201,13 @@ void MenuScreen::initShaders() {
     m_shadersInit = true;
 }
 
-void MenuScreen::drawButton(float y, const std::string& text, bool selected) const {
+void MenuScreen::drawButton(float y, const std::string& text, bool hovered) const {
     float bx1 = BTN_X1, bx2 = BTN_X2;
     float by1 = y - BTN_HALF_H, by2 = y + BTN_HALF_H;
 
-    float r = selected ? 0.15f : 0.08f;
-    float g = selected ? 0.6f : 0.12f;
-    float b = selected ? 0.9f : 0.2f;
+    float r = hovered ? 0.12f : 0.08f;
+    float g = hovered ? 0.25f : 0.12f;
+    float b = hovered ? 0.4f : 0.2f;
 
     float verts[] = {
         bx1, by1, r, g, b,
@@ -256,7 +242,44 @@ void MenuScreen::drawButton(float y, const std::string& text, bool selected) con
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
     glBindVertexArray(0);
 
-    const_cast<MenuScreen*>(this)->drawMsdfText(0.0f, y, text, BTN_TEXT_SCALE, 1.0f, 1.0f, 1.0f);
+    if (hovered) {
+        drawOutline(bx1, by1, bx2, by2, 0.3f, 0.7f, 1.0f);
+    }
+
+    const_cast<MenuScreen*>(this)->drawMsdfText(0.0f, y + 0.012f, text, BTN_TEXT_SCALE, 1.0f, 1.0f, 1.0f);
+}
+
+void MenuScreen::drawOutline(float x1, float y1, float x2, float y2, float r, float g, float b) const {
+    float w = OUTLINE_W;
+    float lines[] = {
+        x1,y1, r,g,b,  x2,y1, r,g,b,
+        x2,y1, r,g,b,  x2,y2, r,g,b,
+        x2,y2, r,g,b,  x1,y2, r,g,b,
+        x1,y2, r,g,b,  x1,y1, r,g,b,
+    };
+
+    static GLuint olVao = 0, olVbo = 0;
+    if (!olVao) {
+        glGenVertexArrays(1, &olVao);
+        glGenBuffers(1, &olVbo);
+        glBindVertexArray(olVao);
+        glBindBuffer(GL_ARRAY_BUFFER, olVbo);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(lines), lines, GL_DYNAMIC_DRAW);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5*sizeof(float), (void*)0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 5*sizeof(float), (void*)(2*sizeof(float)));
+        glBindVertexArray(0);
+    }
+
+    glUseProgram(m_buttonProg);
+    glBindBuffer(GL_ARRAY_BUFFER, olVbo);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(lines), lines);
+    glBindVertexArray(olVao);
+    glLineWidth(2.0f);
+    glDrawArrays(GL_LINES, 0, 8);
+    glLineWidth(1.0f);
+    glBindVertexArray(0);
 }
 
 void MenuScreen::drawMsdfText(float x, float y, const std::string& text, float scale,

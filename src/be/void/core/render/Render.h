@@ -41,6 +41,8 @@ public:
 
     world::ChunkManager& getChunkManager() { return m_chunkManager; }
 
+    void setSeed(uint32_t seed) { m_chunkManager.setSeed(seed); }
+
     void drawCrosshair();
     void drawHand();
 

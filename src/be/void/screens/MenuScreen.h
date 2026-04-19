@@ -50,14 +50,14 @@ public:
     ScreenID nextScreen() const override { return m_nextScreen; }
 
 private:
-    void drawButton(float y, const std::string& text, bool selected) const;
+    void drawButton(float y, const std::string& text, bool hovered) const;
+    void drawOutline(float x1, float y1, float x2, float y2, float r, float g, float b) const;
     void drawMsdfText(float x, float y, const std::string& text, float scale,
                       float r, float g, float b, float a = 1.0f);
     void initShaders();
-    void selectItem();
+    void selectItem(int idx);
 
     std::vector<MenuItem> m_items;
-    int m_selected = 0;
     ScreenID m_nextScreen = ScreenID::None;
 
     GLuint m_buttonProg = 0;
@@ -67,23 +67,20 @@ private:
     core::render::font::FontRenderer m_fontRenderer;
     bool m_fontsLoaded = false;
 
-    bool m_upPressed = false;
-    bool m_downPressed = false;
-    bool m_enterPressed = false;
-
     double m_mouseX = 0.0;
     double m_mouseY = 0.0;
     bool m_mouseLeftPressed = false;
     int m_hoveredItem = -1;
 
-    static constexpr float BTN_X1 = -0.25f;
-    static constexpr float BTN_X2 =  0.25f;
-    static constexpr float BTN_HALF_H = 0.04f;
-    static constexpr float BTN_SPACING = 0.10f;
+    static constexpr float BTN_X1 = -0.14f;
+    static constexpr float BTN_X2 =  0.14f;
+    static constexpr float BTN_HALF_H = 0.045f;
+    static constexpr float BTN_SPACING = 0.12f;
     static constexpr float BTN_START_Y = 0.25f;
     static constexpr float TITLE_Y = 0.6f;
     static constexpr float TITLE_SCALE = 0.06f;
-    static constexpr float BTN_TEXT_SCALE = 0.03f;
+    static constexpr float BTN_TEXT_SCALE = 0.025f;
+    static constexpr float OUTLINE_W = 0.003f;
 };
 
 } // namespace be::void_::screens

@@ -34,6 +34,23 @@ ChunkManager::ChunkManager(uint32_t seed)
 ChunkManager::~ChunkManager() {
 }
 
+void ChunkManager::setSeed(uint32_t seed) {
+    m_seed = seed;
+    m_biome = BiomeNoise(seed);
+    m_structures = StructureGenerator(seed);
+    m_structures.setBiome(m_biome);
+    for (auto& [k, c] : m_chunks) {
+        if (c) c->unload();
+    }
+    m_chunks.clear();
+    m_lastCx = 0x7FFFFFFF;
+    m_lastCz = 0x7FFFFFFF;
+    m_depotGenerated = false;
+    m_structuresGenerated = false;
+    m_acc = 0;
+    LOGI("[ChunkManager] Seed changed to %u\n", seed);
+}
+
 float ChunkManager::terrainHeight(float wx, float wz) const {
     return m_biome.sample(wx, wz).height * MAX_HEIGHT;
 }

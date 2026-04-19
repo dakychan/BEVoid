@@ -18,6 +18,8 @@
 #define BEVOID_GAME_SCREEN_H
 
 #include "screens/Screen.h"
+#include <cstdint>
+#include <string>
 
 namespace be::void_ {
     namespace core { class Core; }
@@ -39,12 +41,16 @@ public:
     ScreenID nextScreen() const override { return m_nextScreen; }
 
     void setCore(core::Core* core) { m_core = core; }
+    void setSeed(uint32_t seed) { m_seed = seed; }
+    void setWorldName(const std::string& name) { m_worldName = name; }
 
 private:
     core::Core* m_core = nullptr;
     float m_time = 0;
     ScreenID m_nextScreen = ScreenID::None;
     bool m_escPressed = false;
+    uint32_t m_seed = 0;
+    std::string m_worldName;
 };
 
 } // namespace be::void_::screens
