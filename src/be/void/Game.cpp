@@ -313,14 +313,14 @@ static int32_t handleInput(android_app*, AInputEvent* event) {
         } else if (actionMasked == AMOTION_EVENT_ACTION_UP) {
             ts.touched = false;
         } else if (actionMasked == AMOTION_EVENT_ACTION_MOVE) {
-            if (!g_mouseInputEnabled && !g_androidGame->isInMenu()) {
-                g_mouseAccumX += (x - g_lastTouchX) * 0.5f;
-                g_mouseAccumY += (y - g_lastTouchY) * 0.5f;
+            if (!be::void_::g_mouseInputEnabled && !g_androidGame->isInMenu()) {
+                be::void_::g_mouseAccumX += (x - be::void_::g_lastTouchX) * 0.5f;
+                be::void_::g_mouseAccumY += (y - be::void_::g_lastTouchY) * 0.5f;
             }
         }
 
-        g_lastTouchX = x;
-        g_lastTouchY = y;
+        be::void_::g_lastTouchX = x;
+        be::void_::g_lastTouchY = y;
         return 1;
     }
     return 0;
@@ -366,14 +366,14 @@ extern "C" void android_main(struct android_app* app) {
 
             bool wasInMenu = game.isInMenu();
             bool nowInMenu = (game.getScreenMgr().currentScreen() != nullptr &&
-                             game.getScreenMgr().currentScreen()->id() != screens::ScreenID::Game);
+                             game.getScreenMgr().currentScreen()->id() != be::void_::screens::ScreenID::Game);
             game.setInMenu(nowInMenu);
 
-            if (g_mouseInputEnabled && !nowInMenu) {
-                if (std::abs(g_mouseAccumX) > 0.01 || std::abs(g_mouseAccumY) > 0.01) {
-                    game.getCore().getInput().onMouseMove(g_mouseAccumX, g_mouseAccumY);
-                    g_mouseAccumX = 0;
-                    g_mouseAccumY = 0;
+            if (be::void_::g_mouseInputEnabled && !nowInMenu) {
+                if (std::abs(be::void_::g_mouseAccumX) > 0.01 || std::abs(be::void_::g_mouseAccumY) > 0.01) {
+                    game.getCore().getInput().onMouseMove(be::void_::g_mouseAccumX, be::void_::g_mouseAccumY);
+                    be::void_::g_mouseAccumX = 0;
+                    be::void_::g_mouseAccumY = 0;
                 }
             }
 
